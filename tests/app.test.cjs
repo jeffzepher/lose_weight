@@ -29,7 +29,7 @@ async function harness(initial={},options={}){
   const ctx={AbortController,fetch:options.fetchImpl,FileReader:class{readAsDataURL(){this.result='photo';this.onload();}},Image:class{width=800;height=600;set src(value){this.onload();}},QingxunStorage:{createStorage:()=>({load:async()=>JSON.parse(JSON.stringify(initial)),save:async value=>{if(options.failSave?.())throw Error('quota exceeded');stored=JSON.parse(JSON.stringify(value));},info:{}})},document:doc,window:{scrollTo(){}},QingxunCore:require('../core'),FormData:class{constructor(){return Object.entries(fields);}},Intl,Date,URL,setTimeout(){},clearTimeout(){}};
   ctx.QingxunConfig=options.config;
   el('#recognition-code').focus=()=>{};
-  await vm.runInNewContext(fs.readFileSync(require.resolve('../browser-app.js'),'utf8'),ctx);
+  await vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),ctx);
   return {el,get state(){return stored;},async click(dataset){events.click({target:{closest(){return {dataset};}}});await new Promise(setImmediate);},async change(target){await events.change({target});await new Promise(setImmediate);},submit(values){fields=values;return events['#sheet-form:submit']({preventDefault(){}});}};
 }
 test('home begins with budget, measurements persist and calendar renders phase colors',async()=>{

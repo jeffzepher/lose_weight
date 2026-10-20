@@ -11,5 +11,3 @@ GitHub 仓库连接失败需要检查 GitHub 的 Vercel App 是否有该仓库�
 注意：Vercel 默认域名的国内可达性仍取决于网络，迁移本身不能保证免 VPN。先用手机直连测试实际部署网址。
 
 数据按网站域名保存在浏览器本机。GitHub Pages 上的旧记录不会自动出现在 Vercel 域名，暂时保留原桌面入口和原站点数据。
-
-如果之前部署误识别成后端框架，在 Settings → Build and Deployment 将 Framework Preset 改为 Other，移除旧的 Build Command / Output Directory 覆盖值，使用仓库配置。重新部署 main 最新提交，不要重试旧提交。
