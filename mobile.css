@@ -8,7 +8,8 @@ main{padding-top:calc(20px + env(safe-area-inset-top));min-height:0}
 .body-measures em{font-size:10px;font-weight:400;font-style:normal;color:var(--muted)}
 .collection-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .collection-actions .main-btn{margin-top:0;padding:14px 8px;font-size:12px}
-.douyin-btn{background:#f1e0d9;color:#7a5040}
+.collection-actions [data-platform="bilibili"]{background:var(--cycle-pink);color:#783c50}
+.douyin-btn{background:var(--cycle-green);color:#425c37}
 .tabs{flex-wrap:wrap}
 .tabs button{min-width:48px;min-height:44px}
 .video-copy{min-width:0;overflow-wrap:anywhere}
@@ -32,3 +33,30 @@ dialog .form-grid>*{min-width:0}dialog input,dialog select,dialog textarea{min-w
 @media(min-width:1000px){body{gap:0;padding:28px 20px}.app{min-height:0}.app main{padding-bottom:110px}.app nav{position:sticky;margin-top:-85px}}
 @media(max-width:360px){.water-body{gap:9px}.water-buttons button{padding:10px 7px}.water-actions{min-width:0}.water-number strong{font-size:22px}.panel{border-radius:20px}.collection-actions .main-btn{font-size:11px}.calendar button{min-height:40px}}
 @media(display-mode:standalone){.install-link{display:none}}
+.measurement-entry{width:100%;text-align:left;background:var(--white);color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.measurement-entry small{display:block;font-size:11px;color:var(--muted);margin-top:6px}
+.measurement-entry>span:last-child{font-size:23px;color:var(--dark)}
+.trend-chart{width:100%;height:auto;display:block;margin-top:15px;overflow:visible}
+.trend-chart text{fill:#77816f;font:12px sans-serif}
+.trend-chart .grid{stroke:#e8eadd;stroke-width:1}
+.trend-chart .line{fill:none;stroke:#668264;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.trend-chart .dot{fill:#668264;stroke:#fffef9;stroke-width:2}
+.trend-meta{font-size:10px;color:var(--muted);margin-top:5px}
+.trend-empty{border-bottom:1px dashed #dce2d2;min-height:95px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.trend-records{font-size:11px;color:var(--muted);margin-top:12px}
+.trend-records summary{cursor:pointer;min-height:30px;padding:6px 0}
+.trend-records .row{padding:5px 0}
+.back-link{background:transparent;padding:5px 0 18px;font-size:12px;color:var(--dark);min-height:44px}
+.measure-value{font-size:25px;font-weight:500;margin-top:14px}.measure-value small{font-size:12px;color:var(--muted)}
+.category-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.category-checks label{border-radius:12px;padding:12px;display:flex;align-items:center;gap:9px;font-size:12px;min-height:46px}
+.category-checks input{width:18px;height:18px;flex-shrink:0;margin:0}
+.category-shoulder{background:#f3dce2;color:#783c50}.category-shoulder input{accent-color:#a5516e}
+.category-legs{background:#e5ecd9;color:#425c37}.category-legs input{accent-color:#587b47}
+.category-posture{background:#f8e6ad;color:#745c21}.category-posture input{accent-color:#967317}
+.category-stretch{background:#e0eef2;color:#355d6d}.category-stretch input{accent-color:#447e94}
+.energy-link{margin-top:12px;width:100%;font-size:11px}
+.energy-summary{padding-top:13px;border-top:1px solid var(--line);font-size:11px;line-height:1.8;color:var(--muted)}
+.confirmation{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.7;margin-top:14px}
+.confirmation input{width:18px;height:18px;flex-shrink:0;accent-color:var(--dark)}
+dialog .confirmation{display:flex}dialog .confirmation input{width:18px;margin-top:3px;padding:0}
