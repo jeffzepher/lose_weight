@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f1e5"><title>轻循 · 顺着身体，慢慢变轻</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="desktop-note"><span class="brand-mark">轻循</span><h1>顺着身体，<br>慢慢变轻。</h1><p>把每一餐、每一杯水，<br>和认真照顾自己的日子记下来。</p><span class="edition">MOBILE APP / 页面原型 01</span><div class="petal p1"></div><div class="petal p2"></div></div>
+  <div class="app">
+    <header><a href="#today" class="wordmark">轻循 <span>WITH YOUR RHYTHM</span></a><button class="avatar" data-action="profile" aria-label="身体档案">☺</button></header>
+    <main id="content"></main>
+    <nav aria-label="主导航">
+      <button data-page="today" class="active"><span>⌂</span>今日</button>
+      <button data-page="cycle"><span>❋</span>周期</button>
+      <button data-page="record"><span>＋</span>记录</button>
+      <button data-page="train"><span>♧</span>跟练</button>
+      <button data-page="calendar"><span>▦</span>日历</button>
+    </nav>
+  </div>
+  <dialog id="sheet"><form id="sheet-form"><div class="sheet-top"><span class="eyebrow">轻循 · 记录生活</span><button type="button" data-action="close" aria-label="关闭">×</button></div><div id="sheet-body"></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
