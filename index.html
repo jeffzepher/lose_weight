@@ -14,7 +14,8 @@
 </head>
 <body>
   <div class="app">
-    <main id="content"></main>
+    <p id="storage-alert" class="storage-alert" role="alert" hidden></p>
+    <main id="content"><p class="info">正在读取本机记录…</p></main>
     <nav aria-label="主导航">
       <button data-page="today" class="active"><span>⌂</span>今日</button>
       <button data-page="cycle"><span>❋</span>周期</button>
@@ -26,6 +27,8 @@
   <dialog id="sheet"><form id="sheet-form"><div class="sheet-top"><span class="eyebrow">轻循 · 记录生活</span><button type="button" data-action="close" aria-label="关闭">×</button></div><div id="sheet-body"></div></form></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="core.js"></script>
+  <script src="storage.js"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="install.js"></script>
 </body>
