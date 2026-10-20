@@ -8,3 +8,6 @@ test-results/
 .dev.vars.*
 .wrangler/
 *.log
+
+.vercel/
+public/
