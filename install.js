@@ -1,5 +1,46 @@
 (() => {
   let installPrompt;
+  document.addEventListener('click', async e=>{
+    const button=e.target.closest('[data-update]');
+    if(!button || button.disabled)return;
+    button.disabled=true;
+    button.textContent='正在更新…';
+    try{
+      if(!navigator.onLine)throw Error('请联网后重试');
+      if('serviceWorker' in navigator && window.isSecureContext){
+        const registration=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+        await registration.update();
+        const installing=registration.installing;
+        if(installing)await new Promise((resolve,reject)=>{
+          const timer=setTimeout(()=>reject(Error('更新超时，请重试')),30000);
+          const changed=()=>{
+            if(installing.state==='activated'){clearTimeout(timer);resolve();}
+            if(installing.state==='redundant'){clearTimeout(timer);reject(Error('更新失败，请重试'));}
+          };
+          installing.addEventListener('statechange',changed);
+          changed();
+        });
+        const ready=await navigator.serviceWorker.ready;
+        await new Promise((resolve,reject)=>{
+          const channel=new MessageChannel();
+          const timer=setTimeout(()=>reject(Error('更新超时，请重试')),30000);
+          channel.port1.onmessage=event=>{
+            clearTimeout(timer);channel.port1.close();
+            event.data.ok?resolve():reject(Error('更新失败，请重试'));
+          };
+          ready.active.postMessage({type:'REFRESH_SHELL'},[channel.port2]);
+        });
+      }
+      window.location.reload();
+    }catch(error){
+      button.disabled=false;
+      button.textContent='重试更新 · v1';
+      button.title=error.message;
+      const toast=document.getElementById('toast');
+      toast.textContent=error.message;toast.classList.add('show');
+      setTimeout(()=>toast.classList.remove('show'),4000);
+    }
+  });
   window.addEventListener('beforeinstallprompt', e=>{e.preventDefault();installPrompt=e;});
   window.addEventListener('appinstalled', ()=>{installPrompt=null;});
   document.addEventListener('click', async e=>{

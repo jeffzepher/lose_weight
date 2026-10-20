@@ -83,3 +83,8 @@ dialog .confirmation{display:flex}dialog .confirmation input{width:18px;margin-t
 .nutrient-inputs label{min-width:0;margin-top:8px}
 .nutrient-inputs input{padding:10px 8px}
 @media(max-width:360px){.panel.body-activity{padding:4px 14px}.body-activity .row{gap:12px}.body-activity .small-btn{min-width:72px;padding:10px}.meal-entry{gap:8px}.meal-entry img{width:46px;height:46px}.meal-actions strong{font-size:12px}}
+
+.app-tools{position:relative;display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 20px 0}
+.app-tools .install-link,.update-button{width:auto;min-height:40px;padding:9px 11px;border-radius:12px;background:#edf0e6;color:var(--dark);font-size:11px;white-space:nowrap}
+.app-tools+main{padding-top:12px}
+@media(max-width:360px){.app-tools{padding-left:14px;padding-right:14px}}
