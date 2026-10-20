@@ -10,7 +10,7 @@ function request({method='POST',path='/api/recognize',site=origin,token=env.ACCE
 test('health confirms correct code and configuration without contacting DeepSeek',async()=>{
   const handler=(await worker()).createHandler(()=>{throw Error('must not call');});
   const response=await handler(request({method:'GET',path:'/health'}),env);
-  assert.deepEqual(await response.json(),{service:'qingxun-ai',version:1,configured:true});
+  assert.deepEqual(await response.json(),{service:'qingxun-ai',version:2,configured:true});
   const incomplete=await handler(request({method:'GET',path:'/'}),{DEEPSEEK_API_KEY:'test'});
   assert.equal((await incomplete.json()).configured,false);
 });
@@ -58,4 +58,10 @@ test('provider errors, malformed results and timeouts preserve CORS and hide det
     assert.equal(response.status,502);assert.equal(response.headers.get('Access-Control-Allow-Origin'),origin);
     assert.doesNotMatch(JSON.stringify(await response.json()),/secret provider debug|test-provider-key|test-personal-code/);
   }
+});
+
+test('worker returns valid nutrient estimates while preserving missing fields',async()=>{
+  const handler=(await worker()).createHandler(async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'鸡蛋',amount:'两个',kcal:160,nutrients:{protein:13.56,carbs:0,fat:null}})}}]}));
+  const response=await handler(request(),env);
+  assert.deepEqual((await response.json()).nutrients,{protein:13.6,carbs:0});
 });

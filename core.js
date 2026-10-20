@@ -33,7 +33,13 @@
     const total=energy.resting+energy.active,difference=total-intake;
     return {intake,total,difference,status:day.intakeComplete&&energy.complete?'complete':'partial'};
   }
-  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance};
+  function nutrientTotals(meals=[]){
+    return Object.fromEntries(['protein','carbs','fat'].map(key=>{
+      const values=meals.map(meal=>meal.nutrients?.[key]).filter(value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=2500);
+      return [key,{grams:values.length?Math.round(values.reduce((a,b)=>a+b,0)*10)/10:null,count:values.length,total:meals.length}];
+    }));
+  }
+  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance,nutrientTotals};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.QingxunCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

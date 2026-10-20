@@ -171,3 +171,38 @@ test('deployment config routes GitHub Pages to Worker and local preview to local
     assert.equal(ctx.QingxunConfig.recognitionUrl,local?'./api/recognize':'https://qingxun-ai.jeffchen9618.workers.dev/api/recognize');
   }
 });
+
+test('nutrition totals distinguish zero, unknown and partial records',()=>{
+  const {nutrientTotals}=require('../core');
+  const totals=nutrientTotals([{nutrients:{protein:12.3,carbs:0,fat:5.2}},{nutrients:{protein:2.1,carbs:null}},{kcal:480}]);
+  assert.deepEqual(totals.protein,{grams:14.4,count:2,total:3});
+  assert.deepEqual(totals.carbs,{grams:0,count:1,total:3});
+  assert.deepEqual(totals.fat,{grams:5.2,count:1,total:3});
+  assert.equal(nutrientTotals([{kcal:480}]).protein.grams,null);
+});
+
+test('legacy meal can be edited to add nutrients without duplicating or losing its photo and time',async()=>{
+  const date=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai'}).format(new Date());
+  const photo='data:image/jpeg;base64,/9j/2Q==';
+  const h=await harness({days:{[date]:{meals:[{type:'早餐',name:'原餐食',amount:'一份',kcal:480,photo,time:'08:30'}]}}});
+  await h.click({page:'record'});
+  assert.doesNotMatch(h.el('#content').innerHTML,/待分析/);
+  assert.match(h.el('#content').innerHTML,/尚未补充/);
+  await h.click({editMeal:'0'});
+  assert.equal(h.el('field:name').value,'原餐食');assert.equal(h.el('#photo-preview').src,photo);
+  await h.submit({type:'早餐',name:'原餐食',amount:'一份',kcal:'480',protein:'25.5',carbs:'40',fat:'0'});
+  const meals=h.state.days[date].meals;assert.equal(meals.length,1);
+  assert.equal(meals[0].time,'08:30');assert.equal(meals[0].photo,photo);
+  assert.deepEqual(meals[0].nutrients,{protein:25.5,carbs:40,fat:0});
+  assert.match(h.el('#content').innerHTML,/25.5 <span>g/);
+  assert.doesNotMatch(h.el('#content').innerHTML,/尚未补充/);
+});
+
+test('recognition fills nutrients and a legacy response clears stale nutrient estimates',async()=>{
+  let full=true;
+  const h=await harness({}, {fetchImpl:async()=>({ok:true,json:async()=>({name:'鸡蛋',amount:'两个',kcal:160,...(full?{nutrients:{protein:13.5,carbs:0,fat:11}}:{})})})});
+  await h.click({action:'meal'});await h.change({id:'food-photo',files:[{type:'image/jpeg',size:1024}]});
+  await h.click({recognize:''});assert.equal(h.el('field:protein').value,13.5);assert.equal(h.el('field:carbs').value,0);
+  full=false;await h.click({recognize:''});assert.equal(h.el('field:protein').value,'');
+  assert.match(h.el('#recognition-status').textContent,/营养数据未完整返回/);
+});

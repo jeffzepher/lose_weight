@@ -36,3 +36,8 @@ test('handles bad output, provider failures, timeout and permits subsequent retr
     for(let i=0;i<2;i++){const response=await app.post({image});assert.equal(response.status,502);assert.doesNotMatch(JSON.stringify(await response.json()),/private details|test-only/);}
   }
 });
+
+test('local recognition returns validated optional nutrients',async t=>{
+  const app=await running(t,{apiKey:'test-only',fetchImpl:async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'鸡蛋',amount:'两个',kcal:160,nutrients:{protein:13.56,carbs:0,fat:-1}})}}]})});
+  const response=await app.post({image});assert.deepEqual((await response.json()).nutrients,{protein:13.6,carbs:0});
+});

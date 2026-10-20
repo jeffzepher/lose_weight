@@ -3,6 +3,10 @@
 前端已配置识别地址：`https://qingxun-ai.jeffchen9618.workers.dev/api/recognize`。
 网页继续由 `https://jeffzepher.github.io/lose_weight/` 托管，记录继续保存在原浏览器。
 
+## 从原版升级营养识别
+
+重新用本目录最新 `worker.mjs` 完整替换 Cloudflare 编辑器里的代码并 Deploy，原有两个 Secret 保持即可。`/health` 应显示 `version: 2`。旧餐食不会自动生成营养数据，可在网页点击「编辑」，重新识别已有照片或手动补充后保存。
+
 ## 在控制台部署
 
 1. 登录 Cloudflare，进入 Workers & Pages，选择现有的 `qingxun-ai`。
