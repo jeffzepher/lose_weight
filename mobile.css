@@ -1,0 +1,34 @@
+/* Shared cycle palette: cards, calendar backgrounds and legend stay identical. */
+:root{--cycle-pink:#f3dce2;--cycle-green:#e5ecd9;--cycle-yellow:#f8e6ad;--cycle-blue:#e0eef2}
+main{padding-top:calc(20px + env(safe-area-inset-top));min-height:0}
+.app{min-height:100dvh}
+.body-measures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px 8px;border-top:1px solid var(--line);margin-top:16px;padding-top:16px}
+.body-measures small{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+.body-measures strong{font-size:16px;font-weight:500}
+.body-measures em{font-size:10px;font-weight:400;font-style:normal;color:var(--muted)}
+.collection-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.collection-actions .main-btn{margin-top:0;padding:14px 8px;font-size:12px}
+.douyin-btn{background:#f1e0d9;color:#7a5040}
+.tabs{flex-wrap:wrap}
+.tabs button{min-width:48px;min-height:44px}
+.video-copy{min-width:0;overflow-wrap:anywhere}
+.calendar{gap:4px}
+.calendar button{min-width:0;min-height:42px;border-radius:13px}
+.calendar button.phase-menstrual,.phase-menstrual,.phases .phase:nth-child(1){background:var(--cycle-pink);color:#783c50}
+.calendar button.phase-follicular,.phase-follicular,.phases .phase:nth-child(2){background:var(--cycle-green);color:#425c37}
+.calendar button.phase-luteal,.phase-luteal,.phases .phase:nth-child(3){background:var(--cycle-yellow);color:#745c21}
+.calendar button.phase-late-luteal,.phase-late-luteal,.phases .phase:nth-child(4){background:var(--cycle-blue);color:#355d6d}
+.calendar button.selected{outline:2px solid var(--dark);outline-offset:-2px;font-weight:700}
+.calendar button.selected:not([class*="phase-"]){background:#edf0e6;color:var(--ink)}
+.cycle-legend{display:flex;flex-wrap:wrap;gap:12px 14px;margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+.cycle-legend span{display:flex;align-items:center;gap:5px;font-size:10px;color:#64705f}
+.cycle-legend i{display:inline-block;width:12px;height:12px;border-radius:4px}
+.plain-list small{text-align:right;max-width:70%;overflow-wrap:anywhere}
+.install-link{display:block;width:100%;background:transparent;padding:14px;color:var(--dark);font-size:12px;border-radius:12px;min-height:44px}
+.install-help h3{margin-top:22px}.install-help p{font-size:13px;margin-top:8px;color:var(--muted)}
+dialog{padding-bottom:calc(22px + env(safe-area-inset-bottom));max-height:85dvh}
+dialog .form-grid>*{min-width:0}dialog input,dialog select,dialog textarea{min-width:0;max-width:100%}
+.small-btn{min-height:36px}.task label{min-width:0}.water-number{min-width:52px}
+@media(min-width:1000px){body{gap:0;padding:28px 20px}.app{min-height:0}.app main{padding-bottom:110px}.app nav{position:sticky;margin-top:-85px}}
+@media(max-width:360px){.water-body{gap:9px}.water-buttons button{padding:10px 7px}.water-actions{min-width:0}.water-number strong{font-size:22px}.panel{border-radius:20px}.collection-actions .main-btn{font-size:11px}.calendar button{min-height:40px}}
+@media(display-mode:standalone){.install-link{display:none}}
