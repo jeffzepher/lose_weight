@@ -29,6 +29,7 @@ async function harness(initial={},options={}){
   const ctx={AbortController,fetch:options.fetchImpl,FileReader:class{readAsDataURL(){this.result='photo';this.onload();}},Image:class{width=800;height=600;set src(value){this.onload();}},QingxunStorage:{createStorage:()=>({load:async()=>JSON.parse(JSON.stringify(initial)),save:async value=>{if(options.failSave?.())throw Error('quota exceeded');stored=JSON.parse(JSON.stringify(value));},info:{}})},document:doc,window:{scrollTo(){}},QingxunCore:require('../core'),FormData:class{constructor(){return Object.entries(fields);}},Intl,Date,URL,setTimeout(){},clearTimeout(){}};
   ctx.QingxunConfig=options.config;
   el('#recognition-code').focus=()=>{};
+  el('#recognition-code').closest=()=>el('access-details');
   await vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),ctx);
   return {el,get state(){return stored;},async click(dataset){events.click({target:{closest(){return {dataset};}}});await new Promise(setImmediate);},async change(target){await events.change({target});await new Promise(setImmediate);},submit(values){fields=values;return events['#sheet-form:submit']({preventDefault(){}});}};
 }
@@ -205,4 +206,37 @@ test('recognition fills nutrients and a legacy response clears stale nutrient es
   await h.click({recognize:''});assert.equal(h.el('field:protein').value,13.5);assert.equal(h.el('field:carbs').value,0);
   full=false;await h.click({recognize:''});assert.equal(h.el('field:protein').value,'');
   assert.match(h.el('#recognition-status').textContent,/营养数据未完整返回/);
+});
+
+test('weight goal handles loss, gain, reversals, completion and missing values',()=>{
+  const {weightProgress}=require('../core');
+  assert.equal(weightProgress(70,60,65).percent,50);
+  assert.equal(weightProgress(50,60,55).percent,50);
+  assert.equal(weightProgress(70,60,72).percent,0);
+  assert.equal(weightProgress(70,60,59).complete,true);
+  assert.equal(weightProgress(50,60,61).remaining,0);
+  assert.equal(weightProgress(60,60,60).percent,100);
+  assert.equal(weightProgress(70,60,60.01).percent,99.9);
+  assert.equal(weightProgress(70,60,''),null);
+});
+
+test('goal persists through profile changes and updates with a daily weight',async()=>{
+  const h=await harness({profile:{age:25,height:165,weight:70,activity:''}});
+  await h.click({action:'weight-goal'});await h.submit({start:'70',target:'60'});
+  await h.click({action:'profile'});await h.submit({age:'26',height:'165.5',weight:'70',activity:'轻度活动'});
+  assert.equal(h.state.profile.goalStart,70);assert.equal(h.state.profile.goalTarget,60);
+  await h.click({action:'weight'});await h.submit({weight:'65'});
+  assert.match(h.el('#content').innerHTML,/体重目标完成 50%/);
+  assert.match(h.el('#content').innerHTML,/距目标还有 5 kg/);
+});
+
+test('manual meal entry reveals editable results and saves without recognition',async()=>{
+  const h=await harness();await h.click({action:'meal'});
+  assert.equal(h.el('#meal-result').hidden,true);
+  assert.equal(h.el('#meal-save').hidden,true);
+  await h.click({mealManual:''});
+  assert.equal(h.el('#meal-result').hidden,false);
+  assert.equal(h.el('#meal-setup').hidden,true);
+  await h.submit({type:'午餐',name:'米饭',amount:'一碗',kcal:'200',protein:'',carbs:'',fat:''});
+  assert.equal(Object.values(h.state.days).find(d=>d.meals.length).meals[0].name,'米饭');
 });

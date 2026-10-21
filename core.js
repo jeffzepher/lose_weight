@@ -39,7 +39,15 @@
       return [key,{grams:values.length?Math.round(values.reduce((a,b)=>a+b,0)*10)/10:null,count:values.length,total:meals.length}];
     }));
   }
-  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance,nutrientTotals};
+  function weightProgress(start,target,current){
+    const values=[start,target,current];
+    if(values.some(v=>v==null||String(v).trim()===''||!Number.isFinite(Number(v))||Number(v)<=0))return null;
+    [start,target,current]=values.map(Number);
+    const distance=target-start,direction=Math.sign(distance);
+    const complete=distance===0?current===target:(current-target)*direction>=0;
+    return {start,target,current,percent:complete?100:distance===0?0:Math.min(99.9,Math.round(Math.max(0,(current-start)/distance*100)*10)/10),remaining:complete?0:Math.round(Math.abs(target-current)*100)/100,complete};
+  }
+  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance,nutrientTotals,weightProgress};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.QingxunCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
