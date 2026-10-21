@@ -16,7 +16,6 @@
   let page='today', month=today.getMonth(), year=today.getFullYear(), selected=dateKey, filter='全部', mealType='早餐';
   let draftFoods=null;
   let healthDraft=null;
-  const healthPendingKey='qingxun-health-request';
   function applyHealth(rows,replaceWeight=true){
     for(const row of rows){
       const d=day(row.date);
@@ -25,48 +24,42 @@
     }
   }
   function launchHealth(){
+    open('health');
     try{
-      const request=crypto.randomUUID();
-      localStorage.setItem(healthPendingKey,JSON.stringify({request,created:Date.now()}));
-      const callback=new URL(location.href);callback.search='';callback.hash='';
-      callback.searchParams.set('health-return','1');callback.searchParams.set('request',request);
-      const link=new URL('shortcuts://x-callback-url/run-shortcut');
+      const link=new URL('shortcuts://run-shortcut');
       link.searchParams.set('name','健康数据导出');
-      link.searchParams.set('x-success',callback.href);
-      const cancel=new URL(callback);cancel.searchParams.set('cancelled','1');
-      link.searchParams.set('x-cancel',cancel.href);link.searchParams.set('x-error',callback.href);
       location.href=link.href;
-    }catch{toast('无法启动快捷指令，请使用粘贴导入');}
+    }catch{toast('无法启动快捷指令，请手动运行后回此处粘贴');}
   }
   async function importHealthClipboard(){
+    if(submitting)return;
+    const input=$('#health-json'),button=form.querySelector('[data-health-clipboard]');
+    const version=photoVersion;
+    submitting=true;button.disabled=true;button.textContent='正在导入…';
+    $('#form-error').textContent='';
     try{
-      const text=await navigator.clipboard.readText();
-      $('#health-json').value=text;healthDraft=parseHealth(text);
-      const before=JSON.parse(JSON.stringify(state));
-      try{applyHealth(healthDraft.rows);await save();}catch(error){state=before;throw error;}
-      sheet.close();render();toast('健康数据已导入，体重已按日期更新');
-    }catch(error){$('#form-error').textContent=error.name==='NotAllowedError'||!navigator.clipboard?'系统未允许读取剪贴板，请长按输入框粘贴后预览保存。':error instanceof SyntaxError?'剪贴板不是有效的健康数据 JSON，请重新运行快捷指令。':error.message;}
-  }
-  async function receiveHealth(){
-    const url=new URL(location.href);
-    if(url.searchParams.get('health-return')!=='1')return;
-    const raw=url.searchParams.get('result'),request=url.searchParams.get('request'),cancelled=url.searchParams.has('cancelled'),failed=url.searchParams.has('errorMessage');
-    for(const key of ['health-return','request','result','cancelled','errorMessage'])url.searchParams.delete(key);
-    history.replaceState(null,'',url.pathname+url.search+url.hash);
-    if(cancelled||failed){toast(cancelled?'已取消健康数据导入':'快捷指令运行失败，可重试或粘贴导入');return;}
-    if(!raw){open('health');$('#form-error').textContent='快捷指令未返回数据。请让最后一个动作输出最终合并字典，或使用粘贴并导入。';return;}
-    try{
-      const draft=parseHealth(raw);let pending=null;
-      try{pending=JSON.parse(localStorage.getItem(healthPendingKey));}catch{}
-      if(!pending||pending.request!==request||Date.now()-pending.created>15*60*1000){
-        open('health');$('#health-json').value=raw;
-        $('#form-error').textContent='返回到了其他浏览器，或同步请求已过期，未自动保存。若从桌面网站启动，请回原桌面网站粘贴导入；此处的本地记录可能独立。';return;
+      let text=input.value.trim();
+      if(!text){
+        if(!navigator.clipboard?.readText)throw Error('此浏览器不支持按钮读取剪贴板。请长按下面的输入框粘贴，再点「粘贴并导入」。');
+        try{text=(await navigator.clipboard.readText()).trim();}
+        catch{throw Error('未能读取剪贴板。请长按下面的输入框粘贴，再点「粘贴并导入」。');}
+        if(version!==photoVersion||!sheet.open)return;
+        if(!text)throw Error('剪贴板为空，请确认快捷指令最后已拷贝最终合并字典。');
+        // Keep any content pasted by the user while the permission prompt was open.
+        text=input.value.trim()||text;input.value=text;
       }
+      const draft=parseHealth(text);healthDraft=draft;
       const before=JSON.parse(JSON.stringify(state));
-      try{applyHealth(draft.rows);await save();}catch(error){state=before;throw error;}
-      localStorage.removeItem(healthPendingKey);render();
-      toast('已自动导入 '+draft.rows.length+' 条有效记录'+(draft.warnings.length?'，无效数据已跳过':''));
-    }catch(error){open('health');$('#health-json').value=raw;$('#form-error').textContent=error instanceof SyntaxError?'快捷指令返回的不是完整 JSON，请改用最终合并字典作为输出。':error.message;}
+      try{applyHealth(draft.rows,form.elements.namedItem('replace-weight').checked);await save();}
+      catch(error){state=before;throw error;}
+      if(version===photoVersion&&sheet.open)sheet.close();
+      render();toast('已导入 '+draft.rows.length+' 条有效记录'+(draft.warnings.length?'，缺失或无效数据已跳过':''));
+    }catch(error){
+      if(version===photoVersion&&sheet.open){
+        $('#form-error').textContent=error instanceof SyntaxError?'数据不是有效 JSON，请粘贴最终合并字典的完整内容。':error.message;
+        input.focus();
+      }
+    }finally{submitting=false;button.disabled=false;button.textContent='粘贴并导入';}
   }
   function healthDate(raw){
     const m=String(raw??'').trim().match(/^(\d{4})[年-](\d{1,2})[月-](\d{1,2})(?:日)?(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
@@ -352,7 +345,7 @@
     finally{clearTimeout(timer);if(recognition===controller){recognition=null;button.disabled=false;if(form.dataset.mealStage==='loading')mealStage('setup');}}
   }
   function open(kind,mealIndex=null){recognition?.abort();recognition=null;photoVersion++;editingMeal=kind==='meal'?mealIndex:null;const existing=editingMeal===null?null:day().meals[editingMeal];draftPhoto=existing?.photo||'';draftFoods=existing?.foods?.length?JSON.parse(JSON.stringify(existing.foods)):null;if(existing)mealType=existing.type;form.dataset.kind=kind;sheet.classList.toggle('meal-sheet',kind==='meal');let body='';
-    if(kind==='health'){healthDraft=null;body=`<h2>粘贴健康数据</h2><p class="info">运行名为「健康数据导出」的快捷指令后，可点「粘贴并导入」，或长按输入框粘贴后预览保存。自动返回需将快捷指令最后的输出设为最终合并字典。数据只保存在当前浏览器。</p><button type="button" class="main-btn secondary" data-health-clipboard>粘贴并导入</button><label>健康数据 JSON<textarea id="health-json" rows="8" maxlength="2000000" placeholder="粘贴快捷指令最终合并的字典"></textarea></label><button type="button" class="main-btn secondary" data-health-preview>预览数据</button><div id="health-preview" aria-live="polite"></div><label class="confirmation"><input name="replace-weight" type="checkbox" checked>按称重日期覆盖当天旧体重（无效体重跳过）</label>`;}
+    if(kind==='health'){healthDraft=null;body=`<h2>粘贴健康数据</h2><p class="info">快捷指令执行完后，请手动回到此页面，点「粘贴并导入」。若系统不允许读取剪贴板，长按输入框粘贴，再点同一按钮即可保存。快捷指令最后请拷贝最终合并字典；数据只保存在当前浏览器。</p><button type="button" class="main-btn secondary" data-health-clipboard>粘贴并导入</button><label>健康数据 JSON<textarea id="health-json" rows="8" maxlength="2000000" placeholder="粘贴快捷指令最终合并的字典"></textarea></label><button type="button" class="main-btn secondary" data-health-preview>预览数据</button><div id="health-preview" aria-live="polite"></div><label class="confirmation"><input name="replace-weight" type="checkbox" checked>按称重日期覆盖当天旧体重（无效体重跳过）</label>`;}
     if(kind==='profile')body=`<h2>了解你的身体</h2><p class="info">身体信息仅保存在当前浏览器，可随时修改。</p><div class="form-grid"><label>年龄<input name="age" type="number" min="18" max="100" value="${state.profile.age}" required></label><label>身高 · cm<input name="height" type="number" min="100" max="230" step="any" inputmode="decimal" value="${state.profile.height}" required></label></div><label>当前体重 · kg<input name="weight" type="number" min="30" max="250" step="any" inputmode="decimal" value="${state.profile.weight}" required></label><label>日常活动量<select name="activity"><option value="">请选择</option>${['久坐为主','轻度活动','中等活动','高强度活动'].map(v=>`<option ${state.profile.activity===v?'selected':''}>${v}</option>`).join('')}</select></label><p class="info">当前只保存档案，热量计算将在确认目标和健康情况后接入。</p>`;
     if(kind==='cycle')body=`<h2>记录经期</h2><label>最近一次经期开始日<input name="start" type="date" max="${dateKey}" value="${escape(state.cycle.start||'')}" required></label><div class="form-grid"><label>通常周期 · 天<input name="length" type="number" min="15" max="60" value="${state.cycle.length||28}" required></label><label>通常经期 · 天<input name="duration" type="number" min="1" max="14" value="${state.cycle.duration||5}" required></label></div><p class="info">28 天 / 5 天是可修改的输入默认值，并非你的实际记录。周期不规律时，阶段估算可能不适用。</p>`;
     if(kind==='meal')body=mealForm();
@@ -448,5 +441,4 @@ if(e.target.id==='exercise'){day().exercise=e.target.checked;if(!day().exercise)
   if(storage.info.error){$('#storage-alert').hidden=false;$('#storage-alert').textContent='本机数据库不可用：'+storage.info.error+'。当前修改无法保存，请勿关闭页面。';}
   sheet.addEventListener('close',()=>{photoVersion++;recognition?.abort();});
   render();
-  await receiveHealth();
 })();
