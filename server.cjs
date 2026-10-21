@@ -1,6 +1,7 @@
 const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
+const crypto=require('node:crypto');
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.webmanifest':'application/manifest+json','.png':'image/png','.svg':'image/svg+xml'};
 const assets=['index.html','style.css','mobile.css','core.js','storage.js','config.js','app.js','install.js','sw.js','manifest.webmanifest','icons/icon.svg','icons/icon-192.png','icons/icon-512.png','icons/apple-touch-icon.png'];
 const files=Object.fromEntries(assets.map(file=>['/'+file,file]));files['/']='index.html';
@@ -41,14 +42,24 @@ function validateMeal(value){
   }
   return {name:value.name.trim().slice(0,100),amount:value.amount.trim().slice(0,100),kcal:Math.round(value.kcal),...(Object.keys(nutrients).length?{nutrients}:{})};
 }
-function createServer({apiKey=process.env.DEEPSEEK_API_KEY,fetchImpl=fetch,timeoutMs=60000}={}){
+function createServer({apiKey=process.env.DEEPSEEK_API_KEY,accessToken=process.env.ACCESS_TOKEN,fetchImpl=fetch,timeoutMs=60000}={}){
   let busy=false;
   return http.createServer(async(req,res)=>{
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     const pathname=new URL(req.url,'http://localhost').pathname;
+    if(pathname==='/config.js'&&['GET','HEAD'].includes(req.method)){
+      res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'});
+      return res.end(req.method==='HEAD'?undefined:'globalThis.QingxunConfig=Object.freeze('+JSON.stringify({recognitionUrl:'./api/recognize',recognitionRequiresCode:!!accessToken})+');');
+    }
+    if(pathname==='/health'&&req.method==='GET')return json(200,{service:'qingxun',configured:!!apiKey,protected:!!accessToken,version:7});
     if(pathname==='/api/recognize'){
       if(req.method!=='POST')return json(405,{error:'请使用 POST 请求'});
       if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&req.headers.origin!==`https://${req.headers.host}`)return json(403,{error:'不允许跨站请求'});
+      if(accessToken){
+        const supplied=req.headers.authorization||'';
+        const digest=value=>crypto.createHash('sha256').update(value).digest();
+        if(!crypto.timingSafeEqual(digest(supplied),digest('Bearer '+accessToken)))return json(401,{error:'个人访问口令不正确，请重新填写'});
+      }
       if(!apiKey)return json(503,{error:'尚未配置 DeepSeek API 密钥，请在服务端配置后重启；也可以手动填写'});
       if(busy)return json(429,{error:'上一张照片仍在识别，请稍后重试'});
       busy=true;
@@ -77,6 +88,8 @@ function createServer({apiKey=process.env.DEEPSEEK_API_KEY,fetchImpl=fetch,timeo
 }
 if(require.main===module){
   if(fs.existsSync(path.join(__dirname,'.env')))process.loadEnvFile(path.join(__dirname,'.env'));
-  createServer().listen(Number(process.env.PORT)||4173,'127.0.0.1',()=>console.log('Preview: http://127.0.0.1:'+(process.env.PORT||4173)));
+  const host=process.env.HOST||'127.0.0.1';
+  if(!['127.0.0.1','localhost','::1'].includes(host)&&(!process.env.ACCESS_TOKEN||process.env.ACCESS_TOKEN.length<16))throw Error('公开监听需要至少 16 位 ACCESS_TOKEN');
+  createServer().listen(Number(process.env.PORT)||4173,host,()=>console.log('Qingxun listening on '+host+':'+(process.env.PORT||4173)));
 }
 module.exports={createServer,validateMeal};

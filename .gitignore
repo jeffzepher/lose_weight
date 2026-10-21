@@ -8,3 +8,7 @@ test-results/
 .dev.vars.*
 .wrangler/
 *.log
+
+.deploy/
+
+.qingxun-access-token.local
