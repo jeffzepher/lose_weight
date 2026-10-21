@@ -34,7 +34,7 @@
       window.location.reload();
     }catch(error){
       button.disabled=false;
-      button.textContent='重试更新 · v9';
+      button.textContent='重试更新 · v10';
       button.title=error.message;
       const toast=document.getElementById('toast');
       toast.textContent=error.message;toast.classList.add('show');
