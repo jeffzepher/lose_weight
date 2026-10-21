@@ -166,3 +166,71 @@ dialog.meal-sheet{--meal-green:#0ba982;--meal-ink:#253d36;background:#f6f8f8;col
 @media(max-width:360px){dialog.meal-sheet{padding-left:14px;padding-right:14px}.meal-result-card{padding:20px 14px}.meal-macros{gap:8px}.meal-sheet .meal-macros input{font-size:19px}.weight-goal-empty{align-items:flex-start;flex-direction:column}}
 
 .meal-choice>span svg{width:24px;height:24px}
+
+/* Daily intake targets and the independent energy balance. */
+.intake-panel{background:linear-gradient(150deg,#fffef9,#f1faf5);padding:20px 18px}
+.intake-panel>.row h3{font-size:16px}
+.intake-panel>.row .small-btn{color:#2c886b;background:#e5f4eb}
+.intake-overview{display:grid;grid-template-columns:138px minmax(0,1fr);align-items:center;gap:17px;margin:25px 0 18px}
+.intake-ring{width:138px;height:138px;border-radius:50%;background:conic-gradient(from -90deg,#219b78 var(--intake-progress),#dfece3 0);padding:9px;box-shadow:0 4px 18px #3d735b08}
+.intake-ring>div{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;background:#fafffa;gap:3px;padding:8px}
+.intake-ring small{font-size:10px;color:#718b7c;text-align:center;line-height:1.5}
+.intake-ring strong{font-size:30px;line-height:1.3;letter-spacing:-1px;font-weight:600;color:#1c6550;font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere}
+.intake-ring span{font-size:10px;color:#6f8e7a}
+.intake-macros{min-width:0;display:grid;gap:13px}
+.intake-macro{--macro-color:#78b8cc;min-width:0}
+.intake-macro.macro-carbs{--macro-color:#dbc15f}.intake-macro.macro-fat{--macro-color:#dca17a}
+.intake-macro .row{gap:5px;align-items:baseline;flex-wrap:wrap;margin-bottom:5px}
+.intake-macro .row>strong{font-size:11px;font-weight:500}.intake-macro .row>span{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.intake-macro .row>span small{font-size:9px;font-weight:400;color:#91a193}
+.intake-macro progress{appearance:none;width:100%;height:6px;border:0;border-radius:8px;background:#e3ebe4;display:block;overflow:hidden}
+.intake-macro progress::-webkit-progress-bar{background:#e3ebe4;border-radius:8px}
+.intake-macro progress::-webkit-progress-value{background:var(--macro-color);border-radius:8px}
+.intake-macro progress::-moz-progress-bar{background:var(--macro-color);border-radius:8px}
+.macro-coverage{display:block;font-size:9px;color:#92a293;margin-top:4px;line-height:1.5}
+.intake-caption{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;font-size:11px;color:#6f8b79}
+.intake-caption strong{color:#337c5d;font-weight:500}
+.intake-note{font-size:10px;line-height:1.8;color:#9aa99b;margin-top:8px}
+.energy-details{margin-top:17px;padding-top:15px;border-top:1px solid #e0eadd}
+.energy-details>summary{font-size:12px;color:#4e785f;cursor:pointer;min-height:30px;line-height:1.7}
+.energy-details>summary>span{float:right;font-size:10px;color:#93a18e;margin-left:8px}
+.energy-detail-body{padding:12px 0 0}.energy-detail-body .stats{margin-top:14px}
+.energy-detail-body h3{font-size:12px}
+.energy-detail-body .stats strong{font-size:18px}
+/* Meal records keep detailed foods below their meal header. */
+.meal-record{border-top:1px solid #e8eeea;padding:0 0 14px;margin-top:12px}
+.meal-record .meal-entry{border:0;padding-bottom:9px}
+.meal-record .meal-entry img{width:48px;height:58px;object-fit:cover}
+.food-nutrient-line{display:flex;flex-wrap:wrap;gap:6px 13px;font-size:10px;line-height:1.8;color:#87968b}
+.food-nutrient strong{font-weight:500;color:#6aaac0}.food-nutrient.macro-carbs strong{color:#baa34b}.food-nutrient.macro-fat strong{color:#cb936e}
+.food-record-details{margin-top:10px;border-radius:13px;background:#f7faf8;padding:0 12px}
+.food-record-details>summary{padding:12px 0;font-size:11px;color:#5b8c73;cursor:pointer;min-height:40px}
+.food-record-row{padding:13px 0;border-top:1px solid #e8efea}
+.food-record-row .row{align-items:baseline;gap:10px;margin-bottom:7px}
+.food-record-row .row>div{min-width:0;overflow-wrap:anywhere}.food-record-row .row strong{font-size:13px;font-weight:500}
+.food-record-row .row small{font-size:10px;font-weight:400;color:#96a397;margin-left:6px}
+.food-record-row .row b{font-size:12px;white-space:nowrap;font-weight:500}
+.legacy-food-note{font-size:10px;color:#9aaa9e;margin-top:6px}
+/* Inline food detail editor; deleting is staged until the meal is saved. */
+.food-editor-section>.row h3{font-size:14px}
+.food-mode-note{font-size:11px;color:#8e9c92;line-height:1.8;margin:10px 0 14px}
+.food-edit-card{background:#f8fbf9;border:1px solid #e4eee7;border-radius:14px;margin:10px 0;overflow:hidden}
+.food-edit-card>summary{font-size:12px;font-weight:500;color:#4b7e64;padding:15px 12px;cursor:pointer;overflow-wrap:anywhere}
+.food-edit-body{padding:0 12px 15px}.food-edit-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:#9ba99e}
+.food-edit-head button{background:#fff0ec;color:#bd7a66;font-size:11px;border-radius:9px;min-height:32px;padding:5px 10px}
+.food-edit-fields{display:grid;gap:9px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.food-edit-macros{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.meal-sheet .food-edit-body label{font-size:10px;color:#829689;margin-top:12px;min-width:0}
+.meal-sheet .food-edit-body input{background:#fff;border:1px solid #dfe9e2;font-size:14px;padding:10px 8px;margin-top:6px;min-width:0}
+.meal-sheet .food-edit-macros input{font-size:15px;padding:10px 6px}
+.meal-sheet input[readonly]{color:#668772;background-color:#f7faf8}
+.meal-sheet #food-add{font-size:12px;border:1px dashed #bbd8c7;background:#eff8f2;color:#39866a;border-radius:12px}
+@media(max-width:360px){.intake-panel{padding:18px 14px}.intake-overview{grid-template-columns:115px minmax(0,1fr);gap:12px}.intake-ring{width:115px;height:115px;padding:7px}.intake-ring strong{font-size:25px}.intake-ring small{font-size:9px}.intake-macro .row>strong{font-size:10px}.food-record-row .row{flex-wrap:wrap}.food-edit-fields{grid-template-columns:1fr}}
+
+.record-day-title{font-size:13px;color:#56816b;margin-bottom:14px}
+.record-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:17px}
+.record-summary>div{min-width:0;background:#fffefb;border-radius:16px;padding:15px 11px}
+.record-summary small{display:block;font-size:10px;color:#95a092;margin-bottom:8px}
+.record-summary strong{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.record-summary strong span{font-size:10px;font-weight:400;color:#8a9b8e}
+@media(max-width:360px){.record-summary{gap:6px}.record-summary>div{padding:13px 9px}.record-summary strong{font-size:15px}}

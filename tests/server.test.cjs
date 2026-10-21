@@ -41,3 +41,11 @@ test('local recognition returns validated optional nutrients',async t=>{
   const app=await running(t,{apiKey:'test-only',fetchImpl:async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'鸡蛋',amount:'两个',kcal:160,nutrients:{protein:13.56,carbs:0,fat:-1}})}}]})});
   const response=await app.post({image});assert.deepEqual((await response.json()).nutrients,{protein:13.6,carbs:0});
 });
+
+test('local recognition validation sums food details and preserves legacy results',()=>{
+  const {validateMeal}=require('../server.cjs');
+  const meal=validateMeal({name:'组合餐',amount:'一份',kcal:999,foods:[{name:'米饭',amount:'100 g',kcal:130.1,nutrients:{protein:3,carbs:28,fat:0}},{name:'鸡蛋',amount:'1 个',kcal:80.2,nutrients:{protein:6,carbs:0}}]});
+  assert.equal(meal.kcal,210.3);assert.deepEqual(meal.nutrients,{protein:9,carbs:28});
+  assert.equal(meal.foods.length,2);
+  assert.throws(()=>validateMeal({name:'食物',amount:'一份',kcal:1,foods:[]}));
+});

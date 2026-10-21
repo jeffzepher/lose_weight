@@ -10,7 +10,7 @@ function request({method='POST',path='/api/recognize',site=origin,token=env.ACCE
 test('health confirms correct code and configuration without contacting DeepSeek',async()=>{
   const handler=(await worker()).createHandler(()=>{throw Error('must not call');});
   const response=await handler(request({method:'GET',path:'/health'}),env);
-  assert.deepEqual(await response.json(),{service:'qingxun-ai',version:2,configured:true});
+  assert.deepEqual(await response.json(),{service:'qingxun-ai',version:3,configured:true});
   const incomplete=await handler(request({method:'GET',path:'/'}),{DEEPSEEK_API_KEY:'test'});
   assert.equal((await incomplete.json()).configured,false);
 });
@@ -64,4 +64,18 @@ test('worker returns valid nutrient estimates while preserving missing fields',a
   const handler=(await worker()).createHandler(async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'鸡蛋',amount:'两个',kcal:160,nutrients:{protein:13.56,carbs:0,fat:null}})}}]}));
   const response=await handler(request(),env);
   assert.deepEqual((await response.json()).nutrients,{protein:13.6,carbs:0});
+});
+
+test('itemized recognition overrides inconsistent model totals and preserves unknown nutrients',async()=>{
+  const foods=[{name:'米饭',amount:'100 g',kcal:130,nutrients:{protein:3,carbs:28,fat:0}},{name:'鸡蛋',amount:'1 个',kcal:80.5,nutrients:{protein:6,carbs:0,fat:null}}];
+  const handler=(await worker()).createHandler(async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'米饭与鸡蛋',amount:'一份',kcal:999,nutrients:{protein:999,fat:999},foods})}}]}));
+  const response=await handler(request(),env),result=await response.json();
+  assert.equal(response.status,200);assert.equal(result.kcal,210.5);
+  assert.deepEqual(result.nutrients,{protein:9,carbs:28});
+  assert.equal(result.foods.length,2);assert.equal(result.foods[0].nutrients.fat,0);
+});
+
+test('invalid item details are rejected instead of returning a plausible aggregate',async()=>{
+  const handler=(await worker()).createHandler(async()=>Response.json({choices:[{message:{content:JSON.stringify({name:'米饭',amount:'一碗',kcal:130,foods:[{name:'米饭',amount:'100 g',kcal:-10}]})}}]}));
+  assert.equal((await handler(request(),env)).status,502);
 });

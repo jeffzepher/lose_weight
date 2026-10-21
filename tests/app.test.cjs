@@ -33,9 +33,9 @@ async function harness(initial={},options={}){
   await vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),ctx);
   return {el,get state(){return stored;},async click(dataset){events.click({target:{closest(){return {dataset};}}});await new Promise(setImmediate);},async change(target){await events.change({target});await new Promise(setImmediate);},submit(values){fields=values;return events['#sheet-form:submit']({preventDefault(){}});}};
 }
-test('home begins with budget, measurements persist and calendar renders phase colors',async()=>{
+test('home begins with intake, measurements persist and calendar renders phase colors',async()=>{
   const h=await harness();
-  assert.match(h.el('#content').innerHTML,/今天的热量收支/);
+  assert.match(h.el('#content').innerHTML,/今日摄入/);
   assert.doesNotMatch(h.el('#content').innerHTML,/greeting|cycle-banner|认识你的身体节奏/);
   await h.click({action:'measurements'});await h.submit({chest:'',waist:'80.5',hip:'99',thigh:'',arm:'',calf:''});
   const d=Object.values(h.state.days).find(d=>d.measurements?.waist);
@@ -239,4 +239,25 @@ test('manual meal entry reveals editable results and saves without recognition',
   assert.equal(h.el('#meal-setup').hidden,true);
   await h.submit({type:'午餐',name:'米饭',amount:'一碗',kcal:'200',protein:'',carbs:'',fat:''});
   assert.equal(Object.values(h.state.days).find(d=>d.meals.length).meals[0].name,'米饭');
+});
+
+test('food totals derive from items and keep any incomplete nutrient unknown',()=>{
+  const {foodTotals,normalizeFood}=require('../core');
+  const foods=[{name:'米饭',amount:'100 g',kcal:130.1,nutrients:{protein:3,carbs:28,fat:0}},{name:'鸡蛋',amount:'1 个',kcal:80.2,nutrients:{protein:6,carbs:0,fat:5}}].map(normalizeFood);
+  assert.deepEqual(foodTotals(foods),{kcal:210.3,nutrients:{protein:9,carbs:28,fat:5}});
+  delete foods[1].nutrients.fat;
+  assert.deepEqual(foodTotals(foods),{kcal:210.3,nutrients:{protein:9,carbs:28}});
+  assert.equal(foodTotals([]).kcal,null);
+  assert.equal(foodTotals([{kcal:null}]).kcal,null);
+  assert.throws(()=>normalizeFood({name:'食物',amount:'一份',kcal:-1}));
+});
+
+test('nutrition targets are optional, persisted in profile and reflected on home',async()=>{
+  const h=await harness();await h.click({action:'nutrition-goal'});
+  await h.submit({'goal-kcal':'1800','goal-protein':'90','goal-carbs':'','goal-fat':'50.5'});
+  assert.deepEqual(h.state.profile.nutritionTargets,{kcal:1800,protein:90,fat:50.5});
+  assert.match(h.el('#content').innerHTML,/目标 1800 kcal/);
+  assert.match(h.el('#content').innerHTML,/未设目标/);
+  await h.click({action:'profile'});await h.submit({age:'30',height:'165',weight:'60',activity:'轻度活动'});
+  assert.equal(h.state.profile.nutritionTargets.kcal,1800);
 });

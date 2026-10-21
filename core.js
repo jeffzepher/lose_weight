@@ -39,6 +39,25 @@
       return [key,{grams:values.length?Math.round(values.reduce((a,b)=>a+b,0)*10)/10:null,count:values.length,total:meals.length}];
     }));
   }
+  function foodTotals(foods=[]){
+    const valid=(v,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
+    const nutrients={};
+    for(const key of ['protein','carbs','fat']){
+      if(foods.length&&foods.every(f=>valid(f.nutrients?.[key],2500)))nutrients[key]=Math.round(foods.reduce((n,f)=>n+f.nutrients[key],0)*10)/10;
+    }
+    return {kcal:foods.length&&foods.every(f=>valid(f.kcal,10000))?Math.round(foods.reduce((n,f)=>n+f.kcal,0)*10)/10:null,nutrients};
+  }
+  function normalizeFood(food){
+    if(!food||typeof food.name!=='string'||!food.name.trim()||typeof food.amount!=='string'||!food.amount.trim()||typeof food.kcal!=='number'||!Number.isFinite(food.kcal)||food.kcal<0||food.kcal>10000)throw Error('请补全食物名称、份量和 0 至 10000 的热量');
+    const nutrients={};
+    for(const key of ['protein','carbs','fat']){
+      const value=food.nutrients?.[key];
+      if(value==null)continue;
+      if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>2500)throw Error('营养克数需在 0 至 2500 之间');
+      nutrients[key]=Math.round(value*10)/10;
+    }
+    return {name:food.name.trim().slice(0,100),amount:food.amount.trim().slice(0,100),kcal:Math.round(food.kcal*10)/10,nutrients};
+  }
   function weightProgress(start,target,current){
     const values=[start,target,current];
     if(values.some(v=>v==null||String(v).trim()===''||!Number.isFinite(Number(v))||Number(v)<=0))return null;
@@ -47,7 +66,7 @@
     const complete=distance===0?current===target:(current-target)*direction>=0;
     return {start,target,current,percent:complete?100:distance===0?0:Math.min(99.9,Math.round(Math.max(0,(current-start)/distance*100)*10)/10),remaining:complete?0:Math.round(Math.abs(target-current)*100)/100,complete};
   }
-  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance,nutrientTotals,weightProgress};
+  const api={phases,cyclePhase,videoLink,trendSeries,energyBalance,nutrientTotals,weightProgress,foodTotals,normalizeFood};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.QingxunCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
