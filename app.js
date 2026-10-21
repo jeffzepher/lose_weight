@@ -16,6 +16,58 @@
   let page='today', month=today.getMonth(), year=today.getFullYear(), selected=dateKey, filter='全部', mealType='早餐';
   let draftFoods=null;
   let healthDraft=null;
+  const healthPendingKey='qingxun-health-request';
+  function applyHealth(rows,replaceWeight=true){
+    for(const row of rows){
+      const d=day(row.date);
+      if(row.metric==='weight'){if(replaceWeight||!d.weight)d.weight=row.value;}
+      else{d.healthSamples ||= [];if(!d.healthSamples.some(old=>JSON.stringify(old)===JSON.stringify(row)))d.healthSamples.push(row);}
+    }
+  }
+  function launchHealth(){
+    try{
+      const request=crypto.randomUUID();
+      localStorage.setItem(healthPendingKey,JSON.stringify({request,created:Date.now()}));
+      const callback=new URL(location.href);callback.search='';callback.hash='';
+      callback.searchParams.set('health-return','1');callback.searchParams.set('request',request);
+      const link=new URL('shortcuts://x-callback-url/run-shortcut');
+      link.searchParams.set('name','健康数据导出');
+      link.searchParams.set('x-success',callback.href);
+      const cancel=new URL(callback);cancel.searchParams.set('cancelled','1');
+      link.searchParams.set('x-cancel',cancel.href);link.searchParams.set('x-error',callback.href);
+      location.href=link.href;
+    }catch{toast('无法启动快捷指令，请使用粘贴导入');}
+  }
+  async function importHealthClipboard(){
+    try{
+      const text=await navigator.clipboard.readText();
+      $('#health-json').value=text;healthDraft=parseHealth(text);
+      const before=JSON.parse(JSON.stringify(state));
+      try{applyHealth(healthDraft.rows);await save();}catch(error){state=before;throw error;}
+      sheet.close();render();toast('健康数据已导入，体重已按日期更新');
+    }catch(error){$('#form-error').textContent=error.name==='NotAllowedError'||!navigator.clipboard?'系统未允许读取剪贴板，请长按输入框粘贴后预览保存。':error instanceof SyntaxError?'剪贴板不是有效的健康数据 JSON，请重新运行快捷指令。':error.message;}
+  }
+  async function receiveHealth(){
+    const url=new URL(location.href);
+    if(url.searchParams.get('health-return')!=='1')return;
+    const raw=url.searchParams.get('result'),request=url.searchParams.get('request'),cancelled=url.searchParams.has('cancelled'),failed=url.searchParams.has('errorMessage');
+    for(const key of ['health-return','request','result','cancelled','errorMessage'])url.searchParams.delete(key);
+    history.replaceState(null,'',url.pathname+url.search+url.hash);
+    if(cancelled||failed){toast(cancelled?'已取消健康数据导入':'快捷指令运行失败，可重试或粘贴导入');return;}
+    if(!raw){open('health');$('#form-error').textContent='快捷指令未返回数据。请让最后一个动作输出最终合并字典，或使用粘贴并导入。';return;}
+    try{
+      const draft=parseHealth(raw);let pending=null;
+      try{pending=JSON.parse(localStorage.getItem(healthPendingKey));}catch{}
+      if(!pending||pending.request!==request||Date.now()-pending.created>15*60*1000){
+        open('health');$('#health-json').value=raw;
+        $('#form-error').textContent='返回到了其他浏览器，或同步请求已过期，未自动保存。若从桌面网站启动，请回原桌面网站粘贴导入；此处的本地记录可能独立。';return;
+      }
+      const before=JSON.parse(JSON.stringify(state));
+      try{applyHealth(draft.rows);await save();}catch(error){state=before;throw error;}
+      localStorage.removeItem(healthPendingKey);render();
+      toast('已自动导入 '+draft.rows.length+' 条有效记录'+(draft.warnings.length?'，无效数据已跳过':''));
+    }catch(error){open('health');$('#health-json').value=raw;$('#form-error').textContent=error instanceof SyntaxError?'快捷指令返回的不是完整 JSON，请改用最终合并字典作为输出。':error.message;}
+  }
   function healthDate(raw){
     const m=String(raw??'').trim().match(/^(\d{4})[年-](\d{1,2})[月-](\d{1,2})(?:日)?(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
     if(!m)return null;
@@ -50,7 +102,7 @@
   function healthPanel(){
     const records=day().healthSamples||[],steps=records.filter(r=>r.metric==='steps'),distance=records.filter(r=>r.metric==='distance');
     const imported=Object.entries(state.days).filter(([,d])=>d.healthSamples?.length).sort(([a],[b])=>b.localeCompare(a)).slice(0,7);
-    return `<section class="panel"><div class="row"><h3>健康记录</h3><button class="small-btn" data-action="health">粘贴健康数据</button></div><div class="stats"><div><small>今日步数样本合计</small><strong>${steps.length?steps.reduce((n,r)=>n+r.value,0):'—'}</strong><em>步</em></div><div><small>今日距离样本合计</small><strong>${distance.length?(distance.reduce((n,r)=>n+r.value,0)).toFixed(2):'—'}</strong><em>km</em></div></div><p class="info">来自快捷指令导入的样本，可能不完整或有来源重叠，不代表健康 App 的全天统计；不用于计算热量缺口。</p>${imported.length?`<details><summary>最近导入记录</summary>${imported.map(([date,d])=>`<div class="row"><span>${date}</span><small>${d.healthSamples.length} 条活动样本</small></div>`).join('')}</details>`:''}</section>`;
+    return `<section class="panel"><div class="row"><h3>健康记录</h3><button class="small-btn" data-health-launch>导入健康数据</button></div><div class="stats"><div><small>今日步数样本合计</small><strong>${steps.length?steps.reduce((n,r)=>n+r.value,0):'—'}</strong><em>步</em></div><div><small>今日距离样本合计</small><strong>${distance.length?(distance.reduce((n,r)=>n+r.value,0)).toFixed(2):'—'}</strong><em>km</em></div></div><button type="button" class="small-btn" data-action="health">粘贴导入 / 使用说明</button><p class="info">来自快捷指令导入的样本，可能不完整或有来源重叠，不代表健康 App 的全天统计；不用于计算热量缺口。</p>${imported.length?`<details><summary>最近导入记录</summary>${imported.map(([date,d])=>`<div class="row"><span>${date}</span><small>${d.healthSamples.length} 条活动样本</small></div>`).join('')}</details>`:''}</section>`;
   }
   let draftPhoto='',photoVersion=0,recognition=null,recognitionCode='',editingMeal=null;
   const recognitionConfig=globalThis.QingxunConfig||{recognitionUrl:'./api/recognize',recognitionRequiresCode:false};
@@ -300,7 +352,7 @@
     finally{clearTimeout(timer);if(recognition===controller){recognition=null;button.disabled=false;if(form.dataset.mealStage==='loading')mealStage('setup');}}
   }
   function open(kind,mealIndex=null){recognition?.abort();recognition=null;photoVersion++;editingMeal=kind==='meal'?mealIndex:null;const existing=editingMeal===null?null:day().meals[editingMeal];draftPhoto=existing?.photo||'';draftFoods=existing?.foods?.length?JSON.parse(JSON.stringify(existing.foods)):null;if(existing)mealType=existing.type;form.dataset.kind=kind;sheet.classList.toggle('meal-sheet',kind==='meal');let body='';
-    if(kind==='health'){healthDraft=null;body=`<h2>粘贴健康数据</h2><p class="info">在快捷指令运行后，回到此处长按输入框粘贴。数据只保存在当前浏览器。</p><label>健康数据 JSON<textarea id="health-json" rows="8" maxlength="2000000" placeholder="粘贴快捷指令最终合并的字典"></textarea></label><button type="button" class="main-btn secondary" data-health-preview>预览数据</button><div id="health-preview" aria-live="polite"></div><label class="confirmation"><input name="replace-weight" type="checkbox">允许替换同一天已有的体重（默认保留原记录）</label>`;}
+    if(kind==='health'){healthDraft=null;body=`<h2>粘贴健康数据</h2><p class="info">运行名为「健康数据导出」的快捷指令后，可点「粘贴并导入」，或长按输入框粘贴后预览保存。自动返回需将快捷指令最后的输出设为最终合并字典。数据只保存在当前浏览器。</p><button type="button" class="main-btn secondary" data-health-clipboard>粘贴并导入</button><label>健康数据 JSON<textarea id="health-json" rows="8" maxlength="2000000" placeholder="粘贴快捷指令最终合并的字典"></textarea></label><button type="button" class="main-btn secondary" data-health-preview>预览数据</button><div id="health-preview" aria-live="polite"></div><label class="confirmation"><input name="replace-weight" type="checkbox" checked>按称重日期覆盖当天旧体重（无效体重跳过）</label>`;}
     if(kind==='profile')body=`<h2>了解你的身体</h2><p class="info">身体信息仅保存在当前浏览器，可随时修改。</p><div class="form-grid"><label>年龄<input name="age" type="number" min="18" max="100" value="${state.profile.age}" required></label><label>身高 · cm<input name="height" type="number" min="100" max="230" step="any" inputmode="decimal" value="${state.profile.height}" required></label></div><label>当前体重 · kg<input name="weight" type="number" min="30" max="250" step="any" inputmode="decimal" value="${state.profile.weight}" required></label><label>日常活动量<select name="activity"><option value="">请选择</option>${['久坐为主','轻度活动','中等活动','高强度活动'].map(v=>`<option ${state.profile.activity===v?'selected':''}>${v}</option>`).join('')}</select></label><p class="info">当前只保存档案，热量计算将在确认目标和健康情况后接入。</p>`;
     if(kind==='cycle')body=`<h2>记录经期</h2><label>最近一次经期开始日<input name="start" type="date" max="${dateKey}" value="${escape(state.cycle.start||'')}" required></label><div class="form-grid"><label>通常周期 · 天<input name="length" type="number" min="15" max="60" value="${state.cycle.length||28}" required></label><label>通常经期 · 天<input name="duration" type="number" min="1" max="14" value="${state.cycle.duration||5}" required></label></div><p class="info">28 天 / 5 天是可修改的输入默认值，并非你的实际记录。周期不规律时，阶段估算可能不适用。</p>`;
     if(kind==='meal')body=mealForm();
@@ -328,7 +380,7 @@
     }
     if(kind==='meal')renderFoodEditor();
   }
-  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if('healthPreview' in b.dataset){healthDraft=null;try{healthDraft=parseHealth($('#health-json').value);const names={weight:'体重',steps:'步数',distance:'距离'};$('#health-preview').innerHTML='<p class="info">按实际记录日期保存；完全相同样本不会重复添加。活动样本未包含来源，无法消除不同设备的重叠记录，也不能推定为全天总量。</p>'+healthDraft.warnings.map(w=>'<p class="info">'+escape(w)+'</p>').join('')+'<p>有效记录 '+healthDraft.rows.length+' 条</p>'+healthDraft.rows.slice(0,50).map(r=>'<div class="row"><span>'+escape(r.time.replace('T',' '))+'</span><span>'+names[r.metric]+' '+r.value+' '+(r.metric==='weight'?'kg':r.metric==='steps'?'步':'km')+'</span></div>').join('');$('#form-error').textContent='';}catch(error){$('#health-preview').textContent='';$('#form-error').textContent=error instanceof SyntaxError?'JSON 格式不正确，请复制最终合并字典的完整内容':error.message;}return;}if('addFood' in b.dataset){addDraftFood();return;}if('removeFood' in b.dataset){captureDraftFoods();const index=Number(b.dataset.removeFood);if(Number.isInteger(index)&&draftFoods?.[index]){draftFoods.splice(index,1);renderFoodEditor();}return;}if('mealManual' in b.dataset){photoVersion++;recognition?.abort();recognition=null;mealStage('result');$('#recognition-status').textContent='手动填写食物与份量，营养可选填。';return;}if('mealReselect' in b.dataset){mealStage('setup');$('#recognition-status').textContent='可重新选择照片，或再次识别。';return;}if('editMeal' in b.dataset){const index=Number(b.dataset.editMeal);if(Number.isInteger(index)&&day().meals[index])open('meal',index);return;}if('recognize' in b.dataset){recognize();return;}if(b.dataset.platform){videoPlatform=b.dataset.platform;open('video');}if(b.dataset.page)navigate(b.dataset.page);if(b.dataset.go)navigate(b.dataset.go);if(b.dataset.water){day().water+=Number(b.dataset.water);saveQuietly();render();toast('已记录 '+b.dataset.water+' ml，慢慢喝。');}if(b.dataset.meal){mealType=b.dataset.meal;open('meal');}if(b.dataset.filter){filter=b.dataset.filter;render();}if(b.dataset.date){selected=b.dataset.date;render();}if(b.dataset.month){const dt=new Date(year,month+Number(b.dataset.month),1);month=dt.getMonth();year=dt.getFullYear();render();}if(b.dataset.action==='close'){photoVersion++;recognition?.abort();sheet.close();}else if(b.dataset.action==='exercise'){day().exercise=!day().exercise;if(!day().exercise)day().trainingCategories=[];saveQuietly();render();toast(day().exercise?'运动已打卡 ✓':'已撤销运动打卡');}else if(b.dataset.action)open(b.dataset.action);});
+  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if('healthLaunch' in b.dataset){launchHealth();return;}if('healthClipboard' in b.dataset){importHealthClipboard();return;}if('healthPreview' in b.dataset){healthDraft=null;try{healthDraft=parseHealth($('#health-json').value);const names={weight:'体重',steps:'步数',distance:'距离'};$('#health-preview').innerHTML='<p class="info">按实际记录日期保存；完全相同样本不会重复添加。活动样本未包含来源，无法消除不同设备的重叠记录，也不能推定为全天总量。</p>'+healthDraft.warnings.map(w=>'<p class="info">'+escape(w)+'</p>').join('')+'<p>有效记录 '+healthDraft.rows.length+' 条</p>'+healthDraft.rows.slice(0,50).map(r=>'<div class="row"><span>'+escape(r.time.replace('T',' '))+'</span><span>'+names[r.metric]+' '+r.value+' '+(r.metric==='weight'?'kg':r.metric==='steps'?'步':'km')+'</span></div>').join('');$('#form-error').textContent='';}catch(error){$('#health-preview').textContent='';$('#form-error').textContent=error instanceof SyntaxError?'JSON 格式不正确，请复制最终合并字典的完整内容':error.message;}return;}if('addFood' in b.dataset){addDraftFood();return;}if('removeFood' in b.dataset){captureDraftFoods();const index=Number(b.dataset.removeFood);if(Number.isInteger(index)&&draftFoods?.[index]){draftFoods.splice(index,1);renderFoodEditor();}return;}if('mealManual' in b.dataset){photoVersion++;recognition?.abort();recognition=null;mealStage('result');$('#recognition-status').textContent='手动填写食物与份量，营养可选填。';return;}if('mealReselect' in b.dataset){mealStage('setup');$('#recognition-status').textContent='可重新选择照片，或再次识别。';return;}if('editMeal' in b.dataset){const index=Number(b.dataset.editMeal);if(Number.isInteger(index)&&day().meals[index])open('meal',index);return;}if('recognize' in b.dataset){recognize();return;}if(b.dataset.platform){videoPlatform=b.dataset.platform;open('video');}if(b.dataset.page)navigate(b.dataset.page);if(b.dataset.go)navigate(b.dataset.go);if(b.dataset.water){day().water+=Number(b.dataset.water);saveQuietly();render();toast('已记录 '+b.dataset.water+' ml，慢慢喝。');}if(b.dataset.meal){mealType=b.dataset.meal;open('meal');}if(b.dataset.filter){filter=b.dataset.filter;render();}if(b.dataset.date){selected=b.dataset.date;render();}if(b.dataset.month){const dt=new Date(year,month+Number(b.dataset.month),1);month=dt.getMonth();year=dt.getFullYear();render();}if(b.dataset.action==='close'){photoVersion++;recognition?.abort();sheet.close();}else if(b.dataset.action==='exercise'){day().exercise=!day().exercise;if(!day().exercise)day().trainingCategories=[];saveQuietly();render();toast(day().exercise?'运动已打卡 ✓':'已撤销运动打卡');}else if(b.dataset.action)open(b.dataset.action);});
   document.addEventListener('input',e=>{
     if(e.target.id==='health-json'){healthDraft=null;$('#health-preview').textContent='内容已修改，请重新预览';}
     if(form.dataset.kind==='meal'&&e.target.dataset?.foodIndex!=null){captureDraftFoods();syncFoodTotals();}
@@ -341,7 +393,7 @@ if(e.target.id==='exercise'){day().exercise=e.target.checked;if(!day().exercise)
   form.addEventListener('submit',async e=>{e.preventDefault();if(submitting)return;const before=JSON.parse(JSON.stringify(state)),f=Object.fromEntries(new FormData(form)),kind=form.dataset.kind;
     if(kind==='health'){
       if(!healthDraft){$('#form-error').textContent='请先预览有效数据，再保存';return;}
-      for(const row of healthDraft.rows){const d=day(row.date);if(row.metric==='weight'){if(!d.weight||f['replace-weight']==='on')d.weight=row.value;}else{d.healthSamples ||= [];if(!d.healthSamples.some(old=>JSON.stringify(old)===JSON.stringify(row)))d.healthSamples.push(row);}}
+      applyHealth(healthDraft.rows,f['replace-weight']==='on');
     }
     if(kind==='profile')state.profile={...state.profile,age:+f.age,height:+f.height,weight:+f.weight,activity:f.activity};
     if(kind==='cycle'){if(+f.duration>=+f.length){$('#form-error').textContent='经期天数应小于周期天数';return;}const records=[...(state.cycle.records|| (state.cycle.start?[{start:state.cycle.start,length:state.cycle.length,duration:state.cycle.duration}]:[]))].filter(r=>r.start!==f.start);records.push({start:f.start,length:+f.length,duration:+f.duration});records.sort((a,b)=>a.start.localeCompare(b.start));state.cycle={...records[records.length-1],records};}
@@ -396,4 +448,5 @@ if(e.target.id==='exercise'){day().exercise=e.target.checked;if(!day().exercise)
   if(storage.info.error){$('#storage-alert').hidden=false;$('#storage-alert').textContent='本机数据库不可用：'+storage.info.error+'。当前修改无法保存，请勿关闭页面。';}
   sheet.addEventListener('close',()=>{photoVersion++;recognition?.abort();});
   render();
+  await receiveHealth();
 })();
