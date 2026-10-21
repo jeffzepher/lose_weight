@@ -1,22 +1,39 @@
-# 独立服务器部署
+# GitHub 前端与独立识别接口
 
-- 网站：http://193.112.55.186:4186/
-- 健康状态：/health（不返回凭据）
-- 应用目录：/opt/qingxun/app
-- 私有配置：/opt/qingxun/server.env，root:root 0600
-- 容器：qingxun-web
-- 映射：4186 → 4173，不占用其他项目端口
-- 资源限制：256 MiB 内存、0.5 CPU、128 PID；非 root、只读文件系统
-- 运行镜像：public.ecr.aws/docker/library/node:22-bookworm-slim
+- 正常入口：https://jeffzepher.github.io/lose_weight/ （v9）
+- 接口：https://193.112.55.186:4186/api/recognize
+- 健康状态：https://193.112.55.186:4186/health
+- 前端继续部署 GitHub Pages，原桌面图标和浏览器记录继续使用。
+- 服务器也提供网页，但属于独立来源，不共享 GitHub 的记录。
 
-服务端动态返回 config.js，识别请求使用同源 /api/recognize，不经过 Cloudflare。DeepSeek 密钥仅留在服务器私有配置。公开监听必须配置至少 16 位 ACCESS_TOKEN；识别需 Bearer 口令。
+## 服务隔离
 
-本地新口令保存在被 Git 忽略的 .qingxun-access-token.local，服务端配置副本是被忽略的 .env.server。不要上传这两个文件。上传包只包括公开网页资源和 server.cjs，不包括 Cloudflare README 或其他项目。
+应用目录 /opt/qingxun/app；私有配置 /opt/qingxun/server.env（root:root 0600）。容器 qingxun-web，HTTPS 映射 4186 → 4173，Node 直接终止 TLS。TLS_CERT=/tls/fullchain.pem，TLS_KEY=/tls/privkey.pem；ALLOWED_ORIGINS=https://jeffzepher.github.io，仅该 GitHub 来源可跨域，仍需 Bearer 口令。
 
-当前入口为 HTTP：暂不支持可靠的 PWA 安装、Service Worker 或剪贴板按钮读取；健康数据可长按手动粘贴。HTTP 不加密照片和口令，配置可信 HTTPS 后再长期使用。更换域名、端口或协议会产生独立的浏览器数据库，旧 GitHub Pages 数据不会自动迁移。
+256 MiB 内存、0.5 CPU、128 PID；非 root、只读文件系统、无 capabilities。镜像 public.ecr.aws/docker/library/node:22-bookworm-slim。不修改或重启其他项目容器，不占用 443。
 
-本次仅迁移网站和 AI 接口，健康/饮食记录仍保存在当前浏览器。GitHub Pages 入口维持原有配置；请通过上面的服务器地址使用独立部署。
+DeepSeek 密钥只在服务器。口令本地副本 .qingxun-access-token.local 和 .env.server 被 Git 忽略，不能提交。切换后需首次输入服务器口令；勾选记住并识别成功后保存在当前设备。旧 Cloudflare 口令不能用于此接口。
 
-更新或停止时只操作 qingxun-web 容器及 /opt/qingxun，不修改、停止或重启其他项目的容器、反向代理或端口规则。云防火墙本项目仅需入站 TCP 4186，其余规则按其他项目实际需要保留。
+## IP 证书与续期
 
-部署确认：公网 /health 返回 configured=true、protected=true；无口令识别返回 401；带口令的空数据返回 400；服务器访问 DeepSeek /models 返回 200。未执行照片识别收费请求、自动化测试或手机页面测试。
+Let’s Encrypt 正式 IP 证书有效期约 6 天。Certbot 5.8.0 单独安装在 /opt/qingxun/certbot-venv；配置、工作、日志均在 /opt/qingxun/acme 下。
+
+- 原证书：/opt/qingxun/acme/config/live/193.112.55.186/
+- 容器证书副本：/opt/qingxun/tls/，只读挂载；私钥 root:1000 0640。
+- 续期钩子：/opt/qingxun/renew-deploy.sh，复制证书并仅重启 qingxun-web。
+- 定时器：qingxun-cert-renew.timer，每 6 小时检查，加最多 30 分钟随机延迟，开机补执行。
+- 服务：qingxun-cert-renew.service。
+- standalone HTTP-01 验证，80 端口只在申请/续期时短暂监听；安全组持续允许 TCP 80、4186，保留 SSH 22。
+- 未来如其他项目占用 80，需改为共享 webroot 验证，不能关闭其他项目。
+
+维护命令：
+
+```sh
+sudo systemctl list-timers qingxun-cert-renew.timer
+sudo journalctl -u qingxun-cert-renew.service
+sudo /opt/qingxun/certbot-venv/bin/certbot renew --dry-run --run-deploy-hooks --non-interactive --config-dir /opt/qingxun/acme/config --work-dir /opt/qingxun/acme/work --logs-dir /opt/qingxun/acme/logs
+```
+
+回滚备份：停止的 qingxun-web-http-backup 容器与 /opt/qingxun/backups/server-before-tls.cjs。回退 HTTP 后不能从 HTTPS 的 GitHub 页面直接调用，应同步回退前端配置。
+
+部署包仅包含明确列出的公开资源，不能包含私有配置、Cloudflare README 或其他项目。健康和饮食记录仍保存在浏览器，服务端未新增记录数据库。

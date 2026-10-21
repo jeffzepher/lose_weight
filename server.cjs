@@ -1,4 +1,5 @@
 const http=require('node:http');
+const https=require('node:https');
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
@@ -42,9 +43,9 @@ function validateMeal(value){
   }
   return {name:value.name.trim().slice(0,100),amount:value.amount.trim().slice(0,100),kcal:Math.round(value.kcal),...(Object.keys(nutrients).length?{nutrients}:{})};
 }
-function createServer({apiKey=process.env.DEEPSEEK_API_KEY,accessToken=process.env.ACCESS_TOKEN,fetchImpl=fetch,timeoutMs=60000}={}){
+function createServer({apiKey=process.env.DEEPSEEK_API_KEY,accessToken=process.env.ACCESS_TOKEN,allowedOrigins=(process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean),tls,fetchImpl=fetch,timeoutMs=60000}={}){
   let busy=false;
-  return http.createServer(async(req,res)=>{
+  const handler=async(req,res)=>{
     const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
     const pathname=new URL(req.url,'http://localhost').pathname;
     if(pathname==='/config.js'&&['GET','HEAD'].includes(req.method)){
@@ -53,8 +54,16 @@ function createServer({apiKey=process.env.DEEPSEEK_API_KEY,accessToken=process.e
     }
     if(pathname==='/health'&&req.method==='GET')return json(200,{service:'qingxun',configured:!!apiKey,protected:!!accessToken,version:7});
     if(pathname==='/api/recognize'){
+      const origin=req.headers.origin;
+      if(origin&&origin!==`http://${req.headers.host}`&&origin!==`https://${req.headers.host}`&&!allowedOrigins.includes(origin))return json(403,{error:'不允许跨站请求'});
+      if(origin&&allowedOrigins.includes(origin)){
+        res.setHeader('Access-Control-Allow-Origin',origin);
+        res.setHeader('Vary','Origin');
+        res.setHeader('Access-Control-Allow-Methods','POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
+        if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
+      }
       if(req.method!=='POST')return json(405,{error:'请使用 POST 请求'});
-      if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&req.headers.origin!==`https://${req.headers.host}`)return json(403,{error:'不允许跨站请求'});
       if(accessToken){
         const supplied=req.headers.authorization||'';
         const digest=value=>crypto.createHash('sha256').update(value).digest();
@@ -84,12 +93,14 @@ function createServer({apiKey=process.env.DEEPSEEK_API_KEY,accessToken=process.e
     if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
     if(!files[pathname]){res.writeHead(404);res.end('Not found');return;}
     fs.readFile(path.join(__dirname,files[pathname]),(err,data)=>{if(err){res.writeHead(500);res.end('Read error');return;}res.setHeader('Content-Type',types[path.extname(files[pathname])]);res.setHeader('Cache-Control','no-cache');res.end(req.method==='HEAD'?undefined:data);});
-  });
+  };
+  return tls?https.createServer(tls,handler):http.createServer(handler);
 }
 if(require.main===module){
   if(fs.existsSync(path.join(__dirname,'.env')))process.loadEnvFile(path.join(__dirname,'.env'));
   const host=process.env.HOST||'127.0.0.1';
   if(!['127.0.0.1','localhost','::1'].includes(host)&&(!process.env.ACCESS_TOKEN||process.env.ACCESS_TOKEN.length<16))throw Error('公开监听需要至少 16 位 ACCESS_TOKEN');
-  createServer().listen(Number(process.env.PORT)||4173,host,()=>console.log('Qingxun listening on '+host+':'+(process.env.PORT||4173)));
+  const tls=process.env.TLS_CERT&&process.env.TLS_KEY?{cert:fs.readFileSync(process.env.TLS_CERT),key:fs.readFileSync(process.env.TLS_KEY),minVersion:'TLSv1.2'}:undefined;
+  createServer({tls}).listen(Number(process.env.PORT)||4173,host,()=>console.log('Qingxun listening on '+host+':'+(process.env.PORT||4173)));
 }
 module.exports={createServer,validateMeal};
