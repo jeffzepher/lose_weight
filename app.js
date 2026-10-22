@@ -14,7 +14,7 @@
   const measurements=[['chest','胸围'],['waist','腰围'],['hip','臀围'],['thigh','大腿围'],['arm','上臂围'],['calf','小腿围']];
   const measurementText=d=>measurements.filter(([key])=>d.measurements?.[key]).map(([key,label])=>`${label} ${d.measurements[key]} cm`).join(' · ');
   let page='today', month=today.getMonth(), year=today.getFullYear(), selected=dateKey, filter='全部', mealType='早餐';
-  let draftFoods=null;
+  let draftFoods=null,mealTotalOverrides={};
   let healthDraft=null;
   function applyHealth(rows,replaceWeight=true){
     // Each import is a replacement snapshot for the supplied date and metric.
@@ -209,7 +209,7 @@
     return nutrientFields.map(([key,label])=>`<span class="food-nutrient macro-${key}">${label} <strong>${escape(food.nutrients?.[key]??'—')}</strong>${food.nutrients?.[key]!=null?'g':''}</span>`).join('');
   }
   function mealRecord(meal,index){
-    return `<article class="meal-record"><div class="meal-entry">${meal.photo?`<img src="${meal.photo}" alt="${escape(meal.type)}照片">`:''}<div class="meal-copy"><h3>${escape(meal.type)} · ${escape(meal.name)}</h3><p>${escape(meal.time)} · ${escape(meal.amount)}</p></div><div class="meal-actions"><strong>${escape(meal.kcal)} kcal</strong><button class="small-btn" data-edit-meal="${index}" aria-label="编辑${escape(meal.type)}">编辑</button></div></div><div class="food-nutrient-line">${foodNutrientText(meal)}</div>${meal.foods?.length?`<details class="food-record-details"><summary>查看 ${meal.foods.length} 项食物明细</summary>${meal.foods.map(food=>`<div class="food-record-row"><div class="row"><div><strong>${escape(food.name)}</strong><small>${escape(food.amount)}</small></div><b>${escape(food.kcal)} <small>kcal</small></b></div><div class="food-nutrient-line">${foodNutrientText(food)}</div></div>`).join('')}</details>`:'<p class="legacy-food-note">整餐记录 · 尚无逐项明细，可在编辑中补充。</p>'}</article>`;
+    return `<article class="meal-record"><div class="meal-entry">${meal.photo?`<img src="${meal.photo}" alt="${escape(meal.type)}照片">`:''}<div class="meal-copy"><h3>${escape(meal.type)} · ${escape(meal.name)}</h3><p>${escape(meal.time)} · ${escape(meal.amount)}</p></div><div class="meal-actions"><strong>${escape(meal.kcal)} kcal</strong><button class="small-btn" data-edit-meal="${index}" aria-label="编辑${escape(meal.type)}">编辑</button><button type="button" class="small-btn" data-delete-meal="${index}" aria-label="删除${escape(meal.type)}记录">删除</button></div></div><div class="food-nutrient-line">${foodNutrientText(meal)}</div>${meal.foods?.length?`<details class="food-record-details"><summary>查看 ${meal.foods.length} 项食物明细</summary>${meal.foods.map(food=>`<div class="food-record-row"><div class="row"><div><strong>${escape(food.name)}</strong><small>${escape(food.amount)}</small></div><b>${escape(food.kcal)} <small>kcal</small></b></div><div class="food-nutrient-line">${foodNutrientText(food)}</div></div>`).join('')}</details>`:'<p class="legacy-food-note">整餐记录 · 尚无逐项明细，可在编辑中补充。</p>'}</article>`;
   }
   function todayPage(){const d=day(), s=summary(dateKey),balance=energyBalance(d),weightPoints=trendSeries(state.days,'weight',dateKey),latestWeight=weightPoints[weightPoints.length-1];return `
     ${intakePanel()}${healthPanel()}
@@ -262,14 +262,14 @@
   }
   function syncFoodTotals(){
     const detailed=draftFoods!==null;
-    for(const key of ['name','amount','kcal',...nutrientFields.map(([key])=>key)])form.elements.namedItem(key).readOnly=detailed;
-    $('#food-mode-note').textContent=detailed?'整餐数值按下面的食物明细自动合计；请在明细中修改。营养项缺失时，整餐该项暂不合计。':'当前为整餐记录。建立明细时，已有整餐数据会作为一项保留，再由你修改拆分。';
+    for(const key of ['name','amount','kcal',...nutrientFields.map(([key])=>key)])form.elements.namedItem(key).readOnly=detailed&&['name','amount'].includes(key);
+    $('#food-mode-note').textContent=detailed?'整餐数值默认按明细合计，也可直接修改上方总热量与营养；手动修改的项目会优先保存，可能与明细合计不同。':'当前为整餐记录。建立明细时，已有整餐数据会作为一项保留，再由你修改拆分。';
     $('#food-add').textContent=detailed?'＋ 添加一种食物':'＋ 建立食物明细';
     $('#meal-save').disabled=detailed&&!draftFoods.length;
     if(!detailed)return;
     const total=foodTotals(draftFoods);
-    form.elements.namedItem('kcal').value=total.kcal??'';
-    for(const [key] of nutrientFields)form.elements.namedItem(key).value=total.nutrients[key]??'';
+    form.elements.namedItem('kcal').value=mealTotalOverrides.kcal??total.kcal??'';
+    for(const [key] of nutrientFields)form.elements.namedItem(key).value=mealTotalOverrides[key]??total.nutrients[key]??'';
     form.elements.namedItem('name').value=draftFoods.map(f=>f.name.trim()).filter(Boolean).join('、').slice(0,100);
     form.elements.namedItem('amount').value=draftFoods.map(f=>f.name.trim()+' '+f.amount.trim()).filter(t=>t.trim()).join('，').slice(0,100);
   }
@@ -393,12 +393,12 @@
       if(recognitionConfig.recognitionRequiresCode&&rememberRecognitionCode){
         try{localStorage.setItem(recognitionCodeKey,recognitionCode);}catch{rememberRecognitionCode=false;toast('识别成功，但浏览器未允许记住口令');}
       }
-      draftFoods=foods;renderFoodEditor();mealStage('result');
+      mealTotalOverrides={};draftFoods=foods;renderFoodEditor();mealStage('result');
       status.textContent=foods?'已按食物明细合计，请逐项核对份量后保存。':nutrientCount===3?'已返回整餐估算；逐项识别需部署新版 Worker，也可手动建立明细。':'已填入食物与热量；营养数据未完整返回，可手动补充。若始终缺少营养，请更新云函数。';
     }catch(error){if(version===photoVersion)status.textContent=error.name==='AbortError'?'识别已取消或超时，可重试或手动填写。':error instanceof TypeError?'无法连接识别服务，请检查网络及云函数的跨域配置，或手动填写。':error.message;}
     finally{clearTimeout(timer);if(recognition===controller){recognition=null;button.disabled=false;if(form.dataset.mealStage==='loading')mealStage('setup');}}
   }
-  function open(kind,mealIndex=null){recognition?.abort();recognition=null;photoVersion++;editingMeal=kind==='meal'?mealIndex:null;const existing=editingMeal===null?null:day().meals[editingMeal];draftPhoto=existing?.photo||'';draftFoods=existing?.foods?.length?JSON.parse(JSON.stringify(existing.foods)):null;if(existing)mealType=existing.type;form.dataset.kind=kind;sheet.classList.toggle('meal-sheet',kind==='meal');let body='';
+  function open(kind,mealIndex=null){recognition?.abort();recognition=null;photoVersion++;editingMeal=kind==='meal'?mealIndex:null;const existing=editingMeal===null?null:day().meals[editingMeal];draftPhoto=existing?.photo||'';draftFoods=existing?.foods?.length?JSON.parse(JSON.stringify(existing.foods)):null;mealTotalOverrides=existing?.totalOverrides?{...existing.totalOverrides}:{};if(existing)mealType=existing.type;form.dataset.kind=kind;sheet.classList.toggle('meal-sheet',kind==='meal');let body='';
     if(kind==='health'){healthDraft=null;body=`<h2>粘贴健康数据</h2><p class="info">快捷指令执行完后，手动回到此页面，将尝试自动粘贴。点「粘贴并导入」保存；若 iPhone 限制读取，长按输入框粘贴后再点按钮。步数和距离按记录日期与类型替换旧数据，不累加；未提供的日期和类型保留。快捷指令最后请拷贝最终合并字典；数据只保存在当前浏览器。</p><button type="button" class="main-btn secondary" data-health-clipboard>粘贴并导入</button><label>健康数据 JSON<textarea id="health-json" rows="8" maxlength="2000000" placeholder="粘贴快捷指令最终合并的字典"></textarea></label><button type="button" class="main-btn secondary" data-health-preview>预览数据</button><div id="health-preview" aria-live="polite"></div><label class="confirmation"><input name="replace-weight" type="checkbox" checked>按称重日期覆盖当天旧体重（无效体重跳过）</label>`;}
     if(kind==='profile')body=`<h2>了解你的身体</h2><p class="info">身体信息仅保存在当前浏览器，可随时修改。</p><div class="form-grid"><label>年龄<input name="age" type="number" min="18" max="100" value="${state.profile.age}" required></label><label>身高 · cm<input name="height" type="number" min="100" max="230" step="any" inputmode="decimal" value="${state.profile.height}" required></label></div><label>当前体重 · kg<input name="weight" type="number" min="30" max="250" step="any" inputmode="decimal" value="${state.profile.weight}" required></label><label>日常活动量<select name="activity"><option value="">请选择</option>${['久坐为主','轻度活动','中等活动','高强度活动'].map(v=>`<option ${state.profile.activity===v?'selected':''}>${v}</option>`).join('')}</select></label><p class="info">当前只保存档案，热量计算将在确认目标和健康情况后接入。</p>`;
     if(kind==='cycle')body=`<h2>记录经期</h2><label>最近一次经期开始日<input name="start" type="date" max="${dateKey}" value="${escape(state.cycle.start||'')}" required></label><div class="form-grid"><label>通常周期 · 天<input name="length" type="number" min="15" max="60" value="${state.cycle.length||28}" required></label><label>通常经期 · 天<input name="duration" type="number" min="1" max="14" value="${state.cycle.duration||5}" required></label></div><p class="info">28 天 / 5 天是可修改的输入默认值，并非你的实际记录。周期不规律时，阶段估算可能不适用。</p>`;
@@ -427,8 +427,18 @@
     }
     if(kind==='meal')renderFoodEditor();
   }
-  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if('forgetRecognitionCode' in b.dataset){forgetRecognitionCode();recognitionCode='';$('#recognition-code').value='';$('#remember-recognition-code').checked=false;toast('已清除记住的口令');return;}if('healthLaunch' in b.dataset){launchHealth();return;}if('healthClipboard' in b.dataset){importHealthClipboard();return;}if('healthPreview' in b.dataset){healthDraft=null;try{healthDraft=parseHealth($('#health-json').value);const names={weight:'体重',steps:'步数',distance:'距离'};$('#health-preview').innerHTML='<p class="info">按实际记录日期更新；本次提供的步数、距离分别替换对应日期旧数据，不与上次导入累加。活动样本未包含来源，无法消除不同设备的重叠记录，也不能推定为全天总量。</p>'+healthDraft.warnings.map(w=>'<p class="info">'+escape(w)+'</p>').join('')+'<p>有效记录 '+healthDraft.rows.length+' 条</p>'+healthDraft.rows.slice(0,50).map(r=>'<div class="row"><span>'+escape(r.time.replace('T',' '))+'</span><span>'+names[r.metric]+' '+r.value+' '+(r.metric==='weight'?'kg':r.metric==='steps'?'步':'km')+'</span></div>').join('');$('#form-error').textContent='';}catch(error){$('#health-preview').textContent='';$('#form-error').textContent=error instanceof SyntaxError?'JSON 格式不正确，请复制最终合并字典的完整内容':error.message;}return;}if('addFood' in b.dataset){addDraftFood();return;}if('removeFood' in b.dataset){captureDraftFoods();const index=Number(b.dataset.removeFood);if(Number.isInteger(index)&&draftFoods?.[index]){draftFoods.splice(index,1);renderFoodEditor();}return;}if('mealManual' in b.dataset){photoVersion++;recognition?.abort();recognition=null;mealStage('result');$('#recognition-status').textContent='手动填写食物与份量，营养可选填。';return;}if('mealReselect' in b.dataset){mealStage('setup');$('#recognition-status').textContent='可重新选择照片，或再次识别。';return;}if('editMeal' in b.dataset){const index=Number(b.dataset.editMeal);if(Number.isInteger(index)&&day().meals[index])open('meal',index);return;}if('recognize' in b.dataset){recognize();return;}if(b.dataset.platform){videoPlatform=b.dataset.platform;open('video');}if(b.dataset.page)navigate(b.dataset.page);if(b.dataset.go)navigate(b.dataset.go);if(b.dataset.water){day().water+=Number(b.dataset.water);saveQuietly();render();toast('已记录 '+b.dataset.water+' ml，慢慢喝。');}if(b.dataset.meal){mealType=b.dataset.meal;open('meal');}if(b.dataset.filter){filter=b.dataset.filter;render();}if(b.dataset.date){selected=b.dataset.date;render();}if(b.dataset.month){const dt=new Date(year,month+Number(b.dataset.month),1);month=dt.getMonth();year=dt.getFullYear();render();}if(b.dataset.action==='close'){photoVersion++;recognition?.abort();sheet.close();}else if(b.dataset.action==='exercise'){day().exercise=!day().exercise;if(!day().exercise)day().trainingCategories=[];saveQuietly();render();toast(day().exercise?'运动已打卡 ✓':'已撤销运动打卡');}else if(b.dataset.action)open(b.dataset.action);});
+  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if('forgetRecognitionCode' in b.dataset){forgetRecognitionCode();recognitionCode='';$('#recognition-code').value='';$('#remember-recognition-code').checked=false;toast('已清除记住的口令');return;}if('healthLaunch' in b.dataset){launchHealth();return;}if('healthClipboard' in b.dataset){importHealthClipboard();return;}if('healthPreview' in b.dataset){healthDraft=null;try{healthDraft=parseHealth($('#health-json').value);const names={weight:'体重',steps:'步数',distance:'距离'};$('#health-preview').innerHTML='<p class="info">按实际记录日期更新；本次提供的步数、距离分别替换对应日期旧数据，不与上次导入累加。活动样本未包含来源，无法消除不同设备的重叠记录，也不能推定为全天总量。</p>'+healthDraft.warnings.map(w=>'<p class="info">'+escape(w)+'</p>').join('')+'<p>有效记录 '+healthDraft.rows.length+' 条</p>'+healthDraft.rows.slice(0,50).map(r=>'<div class="row"><span>'+escape(r.time.replace('T',' '))+'</span><span>'+names[r.metric]+' '+r.value+' '+(r.metric==='weight'?'kg':r.metric==='steps'?'步':'km')+'</span></div>').join('');$('#form-error').textContent='';}catch(error){$('#health-preview').textContent='';$('#form-error').textContent=error instanceof SyntaxError?'JSON 格式不正确，请复制最终合并字典的完整内容':error.message;}return;}if('addFood' in b.dataset){addDraftFood();return;}if('removeFood' in b.dataset){captureDraftFoods();const index=Number(b.dataset.removeFood);if(Number.isInteger(index)&&draftFoods?.[index]){draftFoods.splice(index,1);renderFoodEditor();}return;}if('mealManual' in b.dataset){photoVersion++;recognition?.abort();recognition=null;mealStage('result');$('#recognition-status').textContent='手动填写食物与份量，营养可选填。';return;}if('mealReselect' in b.dataset){mealStage('setup');$('#recognition-status').textContent='可重新选择照片，或再次识别。';return;}if('deleteMeal' in b.dataset){deleteMeal(Number(b.dataset.deleteMeal));return;}if('editMeal' in b.dataset){const index=Number(b.dataset.editMeal);if(Number.isInteger(index)&&day().meals[index])open('meal',index);return;}if('recognize' in b.dataset){recognize();return;}if(b.dataset.platform){videoPlatform=b.dataset.platform;open('video');}if(b.dataset.page)navigate(b.dataset.page);if(b.dataset.go)navigate(b.dataset.go);if(b.dataset.water){day().water+=Number(b.dataset.water);saveQuietly();render();toast('已记录 '+b.dataset.water+' ml，慢慢喝。');}if(b.dataset.meal){mealType=b.dataset.meal;open('meal');}if(b.dataset.filter){filter=b.dataset.filter;render();}if(b.dataset.date){selected=b.dataset.date;render();}if(b.dataset.month){const dt=new Date(year,month+Number(b.dataset.month),1);month=dt.getMonth();year=dt.getFullYear();render();}if(b.dataset.action==='close'){photoVersion++;recognition?.abort();sheet.close();}else if(b.dataset.action==='exercise'){day().exercise=!day().exercise;if(!day().exercise)day().trainingCategories=[];saveQuietly();render();toast(day().exercise?'运动已打卡 ✓':'已撤销运动打卡');}else if(b.dataset.action)open(b.dataset.action);});
+  async function deleteMeal(index){
+    if(submitting||!Number.isInteger(index)||!day().meals[index])return;
+    if(!confirm('删除这条餐食记录？照片、热量和营养数据也将删除。'))return;
+    const before=JSON.parse(JSON.stringify(state));
+    submitting=true;
+    try{day().meals.splice(index,1);day().intakeComplete=false;await save();render();toast('餐食记录已删除');}
+    catch{state=before;toast('删除未保存，请重试');}
+    finally{submitting=false;}
+  }
   document.addEventListener('input',e=>{
+    if(form.dataset.kind==='meal'&&['kcal','protein','carbs','fat'].includes(e.target.name)&&draftFoods!==null)mealTotalOverrides[e.target.name]=e.target.value;
     if(e.target.id==='health-json'){healthDraft=null;$('#health-preview').textContent='内容已修改，请重新预览';}
     if(form.dataset.kind==='meal'&&e.target.dataset?.foodIndex!=null){captureDraftFoods();syncFoodTotals();}
   });
@@ -457,8 +467,8 @@ if(e.target.id==='exercise'){day().exercise=e.target.checked;if(!day().exercise)
         const total=foodTotals(details);if(total.kcal>10000||Object.values(total.nutrients).some(v=>v>2500)){$('#form-error').textContent='食物明细合计超出范围，请核对';return;}
       }
       const meal={...previous,type:f.type,name:f.name.trim(),amount:f.amount.trim(),kcal:+f.kcal,photo:draftPhoto,nutrients,time:previous?.time||new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())};
-      if(details){meal.foods=details;Object.assign(meal,foodTotals(details));meal.name=details.map(food=>food.name).join('、').slice(0,100);meal.amount=details.map(food=>food.name+' '+food.amount).join('，').slice(0,100);}
-      else delete meal.foods;
+      if(details){meal.foods=details;meal.totalOverrides={...mealTotalOverrides};meal.name=details.map(food=>food.name).join('、').slice(0,100);meal.amount=details.map(food=>food.name+' '+food.amount).join('，').slice(0,100);}
+      else{delete meal.foods;delete meal.totalOverrides;}
       day().intakeComplete=false;
       if(previous)day().meals[editingMeal]=meal;else day().meals.push(meal);
     }
