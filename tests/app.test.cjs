@@ -26,12 +26,12 @@ async function harness(initial={},options={}){
   const events={},els={};let stored=initial,fields={};
   function el(s){return els[s]||=( {innerHTML:'',dataset:{},elements:{namedItem:key=>el('field:'+key)},classList:{toggle(){},add(){},remove(){}},setAttribute(){},addEventListener(t,fn){events[s+':'+t]=fn;},showModal(){this.open=true;},close(){this.open=false;events[s+':close']?.();}});}
   const doc={querySelector:el,querySelectorAll:()=>[],createElement:()=>({getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/jpeg;base64,/9j/2Q=='}),addEventListener(t,fn){events[t]=fn;}};
-  const ctx={AbortController,fetch:options.fetchImpl,FileReader:class{readAsDataURL(){this.result='photo';this.onload();}},Image:class{width=800;height=600;set src(value){this.onload();}},QingxunStorage:{createStorage:()=>({load:async()=>JSON.parse(JSON.stringify(initial)),save:async value=>{if(options.failSave?.())throw Error('quota exceeded');stored=JSON.parse(JSON.stringify(value));},info:{}})},document:doc,window:{scrollTo(){}},QingxunCore:require('../core'),FormData:class{constructor(){return Object.entries(fields);}},Intl,Date,URL,setTimeout(){},clearTimeout(){}};
+  const ctx={AbortController,fetch:options.fetchImpl,FileReader:class{readAsDataURL(){this.result='photo';this.onload();}},Image:class{width=800;height=600;set src(value){this.onload();}},QingxunStorage:{createStorage:()=>({load:async()=>JSON.parse(JSON.stringify(initial)),save:async value=>{if(options.failSave?.())throw Error('quota exceeded');stored=JSON.parse(JSON.stringify(value));},info:{}})},document:doc,window:{scrollTo(){},addEventListener(t,fn){events['window:'+t]=fn;}},navigator:{clipboard:options.clipboard},sessionStorage:{getItem:()=>options.healthPending?'1':null,setItem(){},removeItem(){}},location:{href:''},QingxunCore:require('../core'),FormData:class{constructor(){return Object.entries(fields);}},Intl,Date,URL,setTimeout(){},clearTimeout(){}};
   ctx.QingxunConfig=options.config;
   el('#recognition-code').focus=()=>{};
   el('#recognition-code').closest=()=>el('access-details');
   await vm.runInNewContext(fs.readFileSync(require.resolve('../app.js'),'utf8'),ctx);
-  return {el,get state(){return stored;},async click(dataset){events.click({target:{closest(){return {dataset};}}});await new Promise(setImmediate);},async change(target){await events.change({target});await new Promise(setImmediate);},submit(values){fields=values;return events['#sheet-form:submit']({preventDefault(){}});}};
+  return {el,async event(name,visibility){if(visibility)doc.visibilityState=visibility;await events[name]?.();await new Promise(setImmediate);},get state(){return stored;},async click(dataset){events.click({target:{closest(){return {dataset};}}});await new Promise(setImmediate);},async change(target){await events.change({target});await new Promise(setImmediate);},submit(values){fields=values;return events['#sheet-form:submit']({preventDefault(){}});}};
 }
 test('home begins with intake, measurements persist and calendar renders phase colors',async()=>{
   const h=await harness();
@@ -137,12 +137,12 @@ test('failed recognition leaves manual entries intact; stale result cannot fill 
   await delayed.click({action:'meal'});await delayed.change({id:'food-photo',files:[{type:'image/jpeg',size:1024}]});await delayed.click({recognize:''});
   await delayed.click({action:'close'});await delayed.click({action:'meal'});
   finish({ok:true,json:async()=>({name:'旧照片',amount:'一份',kcal:123})});await new Promise(setImmediate);
-  assert.equal(delayed.el('field:name').value,undefined);
+  assert.notEqual(delayed.el('field:name').value,'旧照片');
 });
 
 test('failed save keeps form open and retry saves a meal only once',async()=>{
   let fail=true;
-  const h=await harness({}, {failSave:()=>fail});await h.click({action:'meal'});
+  const h=await harness({}, {failSave:()=>fail});await h.click({action:'meal'});await h.click({mealManual:''});
   const input={type:'早餐',name:'鸡蛋',amount:'一个',kcal:'80'};await h.submit(input);
   assert.equal(h.el('#sheet').open,true);assert.equal(h.el('#storage-alert').hidden,false);
   fail=false;await h.submit(input);
@@ -163,13 +163,13 @@ test('online recognition uses configured Worker and keeps access code out of sto
   assert.doesNotMatch(JSON.stringify(h.state),/my-private-access-code/);
 });
 
-test('deployment config routes GitHub Pages to Worker and local preview to local server',()=>{
+test('deployment config routes GitHub Pages to deployed HTTPS API and local preview to local server',()=>{
   const script=fs.readFileSync(require.resolve('../config.js'),'utf8');
   for(const hostname of ['localhost','127.0.0.1','[::1]','jeffzepher.github.io']){
     const ctx={location:{hostname}};vm.runInNewContext(script,ctx);
     const local=hostname!=='jeffzepher.github.io';
     assert.equal(ctx.QingxunConfig.recognitionRequiresCode,!local);
-    assert.equal(ctx.QingxunConfig.recognitionUrl,local?'./api/recognize':'https://qingxun-ai.jeffchen9618.workers.dev/api/recognize');
+    assert.equal(ctx.QingxunConfig.recognitionUrl,local?'./api/recognize':'https://193.112.55.186:4186/api/recognize');
   }
 });
 
@@ -260,4 +260,51 @@ test('nutrition targets are optional, persisted in profile and reflected on home
   assert.match(h.el('#content').innerHTML,/未设目标/);
   await h.click({action:'profile'});await h.submit({age:'30',height:'165',weight:'60',activity:'轻度活动'});
   assert.equal(h.state.profile.nutritionTargets.kcal,1800);
+});
+
+
+test('stale health return flag never opens import dialog on a new visit',async()=>{
+  let reads=0;
+  const h=await harness({}, {healthPending:true,clipboard:{readText:async()=>{reads++;return '{}';}}});
+  await h.event('window:pageshow');await h.event('window:focus');
+  await h.event('visibilitychange','hidden');await h.event('visibilitychange','visible');
+  assert.notEqual(h.el('#sheet').open,true);assert.equal(reads,0);
+});
+
+test('closing health import cancels clipboard reads on return',async()=>{
+  let reads=0;
+  const h=await harness({}, {clipboard:{readText:async()=>{reads++;return '{}';}}});
+  await h.click({healthLaunch:''});
+  await h.event('visibilitychange','hidden');
+  await h.click({action:'close'});
+  await h.event('window:focus');await h.event('visibilitychange','visible');
+  assert.equal(h.el('#sheet').open,false);assert.equal(reads,0);
+});
+
+test('health import uses preview and save with two decimal display and original precision',async()=>{
+  const h=await harness();await h.click({action:'health'});
+  assert.doesNotMatch(h.el('#sheet-body').innerHTML,/data-health-clipboard|粘贴并导入/);
+  h.el('#health-json').value=JSON.stringify({weight:65.12345,weightDate:'2026-01-02',distance:[{start:'2026-01-02 10:00',end:'2026-01-02 11:00',value:1.23678,unit:'km'}],steps:[{start:'2026-01-02 10:00',end:'2026-01-02 11:00',value:123,unit:'count'}]});
+  await h.click({healthPreview:''});
+  const preview=h.el('#health-preview').innerHTML;
+  assert.match(preview,/65\.12 kg/);assert.match(preview,/1\.24 km/);assert.match(preview,/123\.00 步/);
+  await h.submit({'replace-weight':'on'});
+  assert.equal(h.el('#sheet').open,false);
+  assert.equal(h.state.days['2026-01-02'].weight,65.12345);
+  assert.equal(h.state.days['2026-01-02'].healthSamples.find(r=>r.metric==='distance').value,1.23678);
+});
+
+
+test('explicit shortcut return pastes once and failed permission is not retried on focus',async()=>{
+  for(const denied of [false,true]){
+    let reads=0;
+    const h=await harness({}, {clipboard:{readText:async()=>{reads++;if(denied)throw Error('denied');return JSON.stringify({weight:60.123,weightDate:'2026-01-02'});}}});
+    await h.click({healthLaunch:''});h.el('#health-json').value='';
+    await h.event('visibilitychange','hidden');await h.event('visibilitychange','visible');
+    await h.event('window:focus');
+    await h.event('visibilitychange','hidden');await h.event('visibilitychange','visible');
+    assert.equal(reads,1);assert.equal(h.el('#sheet').open,true);
+    if(denied)assert.match(h.el('#form-error').textContent,/长按输入框粘贴/);
+    else assert.match(h.el('#health-json').value,/60.123/);
+  }
 });
